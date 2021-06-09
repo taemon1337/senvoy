@@ -2,6 +2,12 @@
 
 A simple wrapper container around Envoy that eases configuration and delegates to Envoy for a simple TLS sidecar proxy.
 
+## Rationale
+
+The Envoy Proxy is a very robust, well-proven piece of proxy technology and it supports all major protocols, features, bells, whistles, etc.  This is also an issue when being deployed in a simple configuration (such as a TLS sidecar) where you just want a robust and simple proxy up and running fast without the config headache hassel.
+
+This project gives you the best of both worlds, up and running fast with hardened, production ready proxy.
+
 ## Usage
 
 ```bash
