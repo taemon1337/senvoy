@@ -1,6 +1,7 @@
 static_resources:
   listeners:
-  - address:
+  - name: listener_0
+    address:
       socket_address:
         address: ${LISTEN_ADDRESS}
         port_value: ${LISTEN_PORT}
@@ -8,39 +9,57 @@ static_resources:
     - filters:
       - name: envoy.filters.network.http_connection_manager
         typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager
-          codec_type: auto
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
           stat_prefix: ingress_http
+          access_log:
+          - name: envoy.access_loggers.stdout
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+          http_filters:
+          - name: envoy.filters.http.router
+          upgrade_configs:
+          - upgrade_type: websocket
           route_config:
             name: local_route
             virtual_hosts:
-            - name: service
-              domains:
-              - "*"
+            - name: local_service
+              domains: ["*"]
               routes:
               - match:
                   prefix: "/"
                 route:
-                  cluster: local_service
-          http_filters:
-          - name: envoy.filters.http.router
-            typed_config: {}
-      tls_context:
-        common_tls_context:
-          tls_certificates:
+                  host_rewrite_literal: www.envoyproxy.io
+                  cluster: service_envoyproxy_io
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+          require_client_certificate: ${REQUIRE_CLIENT_CERT}
+          common_tls_context:
+            validation_context:
+              trusted_ca:
+                filename: ${CA_FILE}
+#              match_subject_alt_names:
+#              - contains: ${ALLOW_SAN}
+            tls_certificates:
             - certificate_chain:
                 filename: ${CERT_FILE}
               private_key:
                 filename: ${KEY_FILE}
   clusters:
-  - name: local_service
+  - name: service_envoyproxy_io
+    type: LOGICAL_DNS
     connect_timeout: ${CONNECT_TIMEOUT}
-    type: strict_dns
-    lb_policy: round_robin
-    hosts:
-    - socket_address:
-        address: ${UPSTREAM_ADDRESS}
-        port_value: ${UPSTREAM_PORT}
+    dns_lookup_family: V4_ONLY
+    load_assignment:
+      cluster_name: service_envoyproxy_io
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: ${UPSTREAM_ADDRESS}
+                port_value: ${UPSTREAM_PORT}
 admin:
   access_log_path: /dev/null
   address:

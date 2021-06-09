@@ -1,5 +1,9 @@
 #!/bin/bash
 
+ENVOY_CERT_FILE=$ENVOY_CERTS/server.crt
+ENVOY_KEY_FILE=$ENVOY_CERTS/server.key
+ENVOY_CA_FILE=$ENVOY_CERTS/ca.crt
+
 _help() {
   cat << EOF
   USAGE: $0 <options> <envoy-options>
@@ -18,6 +22,9 @@ _help() {
     --connect-timeout)        The amount of time '0.25s' to wait for upstream to connect
     --cert-file)              The certificate file to serve TLS using
     --key-file)               The key file matching the --cert-file
+    --ca-file                 The CA file to validate client connections against (for mutual TLS)
+    --require-client-cert     If this flag is set (no value) then require the tls client to provide a TLS client cert
+    --allow-san               Only allow Subject Alternate Names (SAN) matching this value to connect
     --cert-days)              The number of days to make the self-signed cert for
     --cert-rsa-bits)          The number of rsa bits to use in the self-signed cert
     --cert-subject)           The certificate subject to use in the self-signed cert
@@ -28,8 +35,30 @@ EOF
 }
 
 _gencerts() {
+  mkdir -p $ENVOY_CERTS
+  # We must copy the certs so they have correct envoy permissions (since run.sh runs as root but proxy runs as envoy)
+
+  if [ -f "${CA_FILE}" ]; then
+    echo "[CA] Copying $CA_FILE to $ENVOY_CA_FILE"
+    cat ${CA_FILE} > $ENVOY_CA_FILE
+    export CA_FILE=$ENVOY_CA_FILE
+  fi
+
+  if [ -f "${CERT_FILE}" ]; then
+    echo "[CERT] Copying $CERT_FILE to $ENVOY_CERT_FILE"
+    cat ${CERT_FILE} > $ENVOY_CERT_FILE
+    export CERT_FILE=$ENVOY_CERT_FILE
+  fi
+
+  if [ -f "${KEY_FILE}" ]; then
+    echo "[KEY] Copying $KEY_FILE to $ENVOY_KEY_FILE"
+    cat ${CERT_FILE} > $ENVOY_KEY_FILE
+    export CERT_FILE=$ENVOY_KEY_FILE
+  fi
+
+
   if [[ -f "${CERT_FILE}" || -f "${KEY_FILE}" ]]; then
-    echo "[CERT] Certificate: ${CERT_FILE}, Key: ${KEY_FILE}"
+    echo "[CERT] Certificate: ${CERT_FILE}, Key: ${KEY_FILE}, CA: ${CA_FILE}"
   else
     echo "[CERT] Generating self-signed certificates..."
     CERT_SUBJECT="/CN=${HOSTNAME}"
@@ -38,17 +67,25 @@ _gencerts() {
     echo "[CERT] Generated the following certificate"
     cat ${CERT_FILE} | openssl x509 -noout -text
   fi
+
+  if [ ! -f "${ENVOY_CA_FILE}" ]; then
+    echo "[CA] Using $CERT_FILE as CA"
+    cat ${ENVOY_CERT_FILE} > ${ENVOY_CA_FILE}
+  fi
 }
 
 _config() {
-  envsubst < ${ENVOY_TEMPLATE} > ${ENVOY_CONFIG}
+  CA_FILE=$ENVOY_CA_FILE CERT_FILE=$ENVOY_CERT_FILE KEY_FILE=$ENVOY_KEY_FILE envsubst < ${ENVOY_TEMPLATE} > ${ENVOY_CONFIG}
 }
 
 _start() {
+  chown -R envoy. ${ENVOY_CERTS}
   bash $ENTRYPOINT -c ${ENVOY_CONFIG} ${@}
 }
 
 _main() {
+  mkdir -p $ENVOY_HOME
+
   _gencerts
 
   echo "[CONFIG] Generating envoy config ${ENVOY_CONFIG}..."
@@ -118,6 +155,20 @@ while [[ $# -gt 0 ]]; do
       ;;
     --key-file)
       KEY_FILE=$2
+      shift
+      shift
+      ;;
+    --ca-file)
+      CA_FILE=$2
+      shift
+      shift
+      ;;
+    --require-client-cert)
+      REQUIRE_CLIENT_CERT=true
+      shift
+      ;;
+    --allow-san)
+      ALLOW_SAN=$2
       shift
       shift
       ;;
