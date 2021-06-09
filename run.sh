@@ -77,7 +77,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --listen-addr)
-      LISTEN_ADDR=$2
+      LISTEN_ADDRESS=$2
       shift
       shift
       ;;
@@ -87,7 +87,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --upstream-addr)
-      UPSTREAM_ADDR=$2
+      UPSTREAM_ADDRESS=$2
       shift
       shift
       ;;
@@ -97,7 +97,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --metrics-addr)
-      METRICS_ADDR=$2
+      METRICS_ADDRESS=$2
       shift
       shift
       ;;
