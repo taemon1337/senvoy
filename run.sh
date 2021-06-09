@@ -28,8 +28,16 @@ EOF
 }
 
 _gencerts() {
-  CERT_SUBJECT="/CN=${HOSTNAME}"
-  openssl req -x509 -newkey rsa:$CERT_RSABITS -subj $CERT_SUBJECT -sha256 -nodes -keyout $KEY_FILE -out $CERT_FILE -days $CERT_DAYS
+  if [[ -f "${CERT_FILE}" || -f "${KEY_FILE}" ]]; then
+    echo "[CERT] Certificate: ${CERT_FILE}, Key: ${KEY_FILE}"
+  else
+    echo "[CERT] Generating self-signed certificates..."
+    CERT_SUBJECT="/CN=${HOSTNAME}"
+    openssl req -x509 -newkey rsa:$CERT_RSABITS -subj $CERT_SUBJECT -sha256 -nodes -keyout $KEY_FILE -out $CERT_FILE -days $CERT_DAYS
+
+    echo "[CERT] Generated the following certificate"
+    cat ${CERT_FILE} | openssl x509 -noout -text
+  fi
 }
 
 _config() {
@@ -41,11 +49,7 @@ _start() {
 }
 
 _main() {
-  echo "[CERT] Generating self-signed certificates..."
   _gencerts
-
-  echo "[CERT] Generated the following certificate"
-  cat ${CERT_FILE} | openssl x509 -noout -text
 
   echo "[CONFIG] Generating envoy config ${ENVOY_CONFIG}..."
   _config
