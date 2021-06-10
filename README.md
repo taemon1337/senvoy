@@ -41,21 +41,25 @@ The following environment variables with their defaults which can be overridden 
 
 |Environment Variable| Command Line option|Default Value|
 |--------------------|--------------------|-------------|
-|ENVOY_HOME||/home/envoy|
-|ENVOY_TEMPLATE|--envoy-template|/home/envoy/envoy.tmpl|
-|ENVOY_CONFIG|--envoy-config|/home/envoy/envoy.yaml|
-|LISTEN_ADDRESS|--listen-addr|0.0.0.0|
-|LISTEN_PORT|--listen-port|8443|
-|UPSTREAM_ADDRESS|--upstream-addr|127.0.0.1|
-|UPSTREAM_PORT|--upstream-port|8080|
-|METRICS_ADDRESS|--metrics-addr|0.0.0.0|
-|METRICS_PORT|--metrics-port|8082|
-|CONNECT_TIMEOUT|--connect-timeout|0.25s|
-|HOSTNAME|--hostname|localhost|
-|CERT_DAYS|--cert-days|365|
-|CERT_RSABITS|--cert-rsa-bits|4096|
-|CERT_FILE|--cert-file|/home/envoy/server.crt|
-|KEY_FILE|--key-file|/home/envoy/server.key|
+|ENVOY_HOME||/var/run/envoy|Location of envoy generated/copied files|
+|ENVOY_TEMPLATE|--envoy-template|/usr/local/src/envoy.tmpl|Location of envoy template file|
+|ENVOY_CONFIG|--envoy-config|/var/run/envoy/envoy.yaml|Location to store envoy config file|
+|ENVOY_CERTS|--envoy-certs|/var/run/envoy/certs|Location to store envoy generated/copied certs|
+|LISTEN_ADDRESS|--listen-addr|0.0.0.0|Address to list on|
+|LISTEN_PORT|--listen-port|8443|Port to listen on|
+|UPSTREAM_ADDRESS|--upstream-addr|127.0.0.1|Address to proxy traffic to|
+|UPSTREAM_PORT|--upstream-port|8080|Port of upstream to proxy traffic to|
+|METRICS_ADDRESS|--metrics-addr|0.0.0.0|Address to host admin metrics on|
+|METRICS_PORT|--metrics-port|8082|Port of metrics admin|
+|CONNECT_TIMEOUT|--connect-timeout|0.25s|Length of time to wait for upstream|
+|HOSTNAME|--hostname|localhost|The hostname to put in generated tls cert|
+|CERT_DAYS|--cert-days|365|The number of days to make generated cert valid for|
+|CERT_RSABITS|--cert-rsa-bits|4096|The number of bits of generated RSA key in TLS cert|
+|CERT_FILE|--cert-file|/home/envoy/server.crt|Location of tls cert file|
+|KEY_FILE|--key-file|/home/envoy/server.key|Location of tls key file|
+|REQUIRE_CLIENT_CERT|--require-client-cert|false|If true, require client tls cert (mutual auth)|
+|ALLOW_SAN|--allow-san|""|If set, only allow matching SANs|
+|ALLOW_SAN_MATCHER|--allow-san-matcher|exact|The envoy string matcher to use, can be exact, contains, prefix, suffix|
 
 ## Docker entrypoint wrapper
 

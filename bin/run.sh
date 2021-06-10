@@ -26,6 +26,7 @@ _help() {
     --cert-rsa-bits)          The number of rsa bits to use in the self-signed cert
     --cert-subject)           The certificate subject to use in the self-signed cert
     --hostname)               The hostname to use in the CN of the self-signed cert
+
   ENVOY_OPTIONS:
     Any additional arguments not matching an above option will be passed to the Envoy entrypoint.
 EOF
@@ -104,6 +105,13 @@ EOF
   CA_FILE=$ca_file
 }
 
+_validate() {
+  if [ -n "$ALLOW_SAN" ]; then
+    echo "[INFO] Enabling --require-client-cert as it is required in order to validate SAN since ALLOW_SAN=$ALLOW_SAN"
+    export REQUIRE_CLIENT_CERT="true"
+  fi
+}
+
 # print all env vars as key: value yaml
 _datayaml() {
   for var in $(compgen -e); do
@@ -113,7 +121,7 @@ _datayaml() {
 
 _config() {
   if ! command -v mustache &> /dev/null; then
-    echo "mustache command could not be found"
+    echo "[ERROR] mustache command could not be found"
     exit 1
   fi
 
@@ -129,6 +137,8 @@ _main() {
   mkdir -p $ENVOY_HOME
 
   _gencerts
+
+  _validate
 
   echo "Writing data variables to $DATA_FILE"
   _datayaml > $DATA_FILE
