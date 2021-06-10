@@ -2,15 +2,14 @@ FROM envoyproxy/envoy:v1.18-latest
 
 USER root
 
-RUN apt-get update && apt-get install gettext-base -y
-
-COPY ./envoy.tmpl /tmp/
-COPY ./run.sh /
+COPY ./bin/* /usr/local/bin/
+COPY ./templates/ /usr/local/src/
 
 ENV ENVOY_HOME=/var/run/envoy \
     ENVOY_CERTS=/var/run/envoy/certs \
     ENVOY_CONFIG=/var/run/envoy/envoy.yaml \
-    ENVOY_TEMPLATE=/tmp/envoy.tmpl \
+    ENVOY_TEMPLATE=/usr/local/src/envoy.tmpl \
+    DATA_FILE=/usr/local/src/data.yaml \
     CERT_FILE=/var/run/envoy/certs/server.crt \
     KEY_FILE=/var/run/envoy/certs/server.key \
     CA_FILE=/var/run/envoy/certs/server.crt \
@@ -26,7 +25,8 @@ ENV ENVOY_HOME=/var/run/envoy \
     HOSTNAME=localhost \
     CERT_DAYS=365 \
     CERT_RSABITS=4096 \
-    ALLOW_SAN=localhost
+    ALLOW_SAN="" \
+    ALLOW_SAN_MATCHER=exact
 
-ENTRYPOINT ["/bin/bash", "/run.sh"]
+ENTRYPOINT ["/bin/bash", "/usr/local/bin/run.sh"]
 CMD [""]

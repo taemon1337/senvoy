@@ -1,9 +1,5 @@
 #!/bin/bash
 
-ENVOY_CERT_FILE=$ENVOY_CERTS/server.crt
-ENVOY_KEY_FILE=$ENVOY_CERTS/server.key
-ENVOY_CA_FILE=$ENVOY_CERTS/ca.crt
-
 _help() {
   cat << EOF
   USAGE: $0 <options> <envoy-options>
@@ -25,6 +21,7 @@ _help() {
     --ca-file                 The CA file to validate client connections against (for mutual TLS)
     --require-client-cert     If this flag is set (no value) then require the tls client to provide a TLS client cert
     --allow-san               Only allow Subject Alternate Names (SAN) matching this value to connect
+    --allow-san-matcher       The type of matcher to use for the SAN, default is exact, can be contains, prefix, suffix (any envoy string matcher)
     --cert-days)              The number of days to make the self-signed cert for
     --cert-rsa-bits)          The number of rsa bits to use in the self-signed cert
     --cert-subject)           The certificate subject to use in the self-signed cert
@@ -35,47 +32,92 @@ EOF
 }
 
 _gencerts() {
+  local cert_file=$ENVOY_CERTS/server.crt
+  local key_file=$ENVOY_CERTS/server.key
+  local ca_file=$ENVOY_CERTS/ca.crt
+
   mkdir -p $ENVOY_CERTS
   # We must copy the certs so they have correct envoy permissions (since run.sh runs as root but proxy runs as envoy)
 
   if [ -f "${CA_FILE}" ]; then
-    echo "[CA] Copying $CA_FILE to $ENVOY_CA_FILE"
-    cat ${CA_FILE} > $ENVOY_CA_FILE
-    export CA_FILE=$ENVOY_CA_FILE
+    echo "[CA] Copying $CA_FILE to $ca_file"
+    cat ${CA_FILE} > $ca_file
+    export CA_FILE=$ca_file
   fi
 
   if [ -f "${CERT_FILE}" ]; then
-    echo "[CERT] Copying $CERT_FILE to $ENVOY_CERT_FILE"
-    cat ${CERT_FILE} > $ENVOY_CERT_FILE
-    export CERT_FILE=$ENVOY_CERT_FILE
+    echo "[CERT] Copying $CERT_FILE to $cert_file"
+    cat ${CERT_FILE} > $cert_file
+    export CERT_FILE=$cert_file
   fi
 
   if [ -f "${KEY_FILE}" ]; then
-    echo "[KEY] Copying $KEY_FILE to $ENVOY_KEY_FILE"
-    cat ${CERT_FILE} > $ENVOY_KEY_FILE
-    export CERT_FILE=$ENVOY_KEY_FILE
+    echo "[KEY] Copying $KEY_FILE to $key_file"
+    cat ${CERT_FILE} > $key_file
+    export CERT_FILE=$key_file
   fi
 
 
   if [[ -f "${CERT_FILE}" || -f "${KEY_FILE}" ]]; then
     echo "[CERT] Certificate: ${CERT_FILE}, Key: ${KEY_FILE}, CA: ${CA_FILE}"
   else
-    echo "[CERT] Generating self-signed certificates..."
-    CERT_SUBJECT="/CN=${HOSTNAME}"
-    openssl req -x509 -newkey rsa:$CERT_RSABITS -subj $CERT_SUBJECT -sha256 -nodes -keyout $KEY_FILE -out $CERT_FILE -days $CERT_DAYS
+    if [ -z "${CERT_SUBJECT}" ]; then CERT_SUBJECT="/CN=$HOSTNAME" ; fi
+    if [ -z "${CERT_SAN}" ]; then CERT_SAN=$HOSTNAME ; fi
+    echo "[CERT] Generate Self Signed: Subj: $CERT_SUBJECT, SAN: $CERT_SAN"
+
+    cat <<EOF > /tmp/san.cnf
+[ req ]
+default_bits       = $CERT_RSABITS
+distinguished_name = req_distinguished_name
+req_extensions     = san
+[ req_distinguished_name ]
+commonName                 = $CERT_SUBJECT 
+[ san ]
+subjectAltName = @alt_names
+[alt_names]
+DNS.1   = localhost
+DNS.2   = $CERT_SAN
+EOF
+
+    openssl req -x509 \
+    -newkey rsa:$CERT_RSABITS \
+    -subj $CERT_SUBJECT \
+    -sha256 -nodes \
+    -keyout $KEY_FILE \
+    -out $CERT_FILE \
+    -days $CERT_DAYS \
+    -extensions san \
+    -config /tmp/san.cnf
 
     echo "[CERT] Generated the following certificate"
     cat ${CERT_FILE} | openssl x509 -noout -text
   fi
 
-  if [ ! -f "${ENVOY_CA_FILE}" ]; then
+  if [ ! -f "${ca_file}" ]; then
     echo "[CA] Using $CERT_FILE as CA"
-    cat ${ENVOY_CERT_FILE} > ${ENVOY_CA_FILE}
+    cat ${cert_file} > ${ca_file}
   fi
+
+  # Overwrite the global vars with the generated/copied readable files
+  CERT_FILE=$cert_file
+  KEY_FILE=$key_file
+  CA_FILE=$ca_file
+}
+
+# print all env vars as key: value yaml
+_datayaml() {
+  for var in $(compgen -e); do
+    echo "${var}: ${!var}"
+  done
 }
 
 _config() {
-  CA_FILE=$ENVOY_CA_FILE CERT_FILE=$ENVOY_CERT_FILE KEY_FILE=$ENVOY_KEY_FILE envsubst < ${ENVOY_TEMPLATE} > ${ENVOY_CONFIG}
+  if ! command -v mustache &> /dev/null; then
+    echo "mustache command could not be found"
+    exit 1
+  fi
+
+  mustache $DATA_FILE $ENVOY_TEMPLATE > $ENVOY_CONFIG
 }
 
 _start() {
@@ -88,8 +130,13 @@ _main() {
 
   _gencerts
 
+  echo "Writing data variables to $DATA_FILE"
+  _datayaml > $DATA_FILE
+  cat $DATA_FILE
+
   echo "[CONFIG] Generating envoy config ${ENVOY_CONFIG}..."
   _config
+  cat $ENVOY_CONFIG
 
   echo "[START] ${@}"
   _start ${@}
@@ -110,6 +157,11 @@ while [[ $# -gt 0 ]]; do
       ;; 
     --envoy-config)
       ENVOY_CONFIG=$2
+      shift
+      shift
+      ;;
+    --data-file)
+      DATA_FILE=$2
       shift
       shift
       ;;
@@ -169,6 +221,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --allow-san)
       ALLOW_SAN=$2
+      shift
+      shift
+      ;;
+    --allow-san-matcher)
+      ALLOW_SAN_MATCHER=$2
       shift
       shift
       ;;

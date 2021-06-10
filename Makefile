@@ -9,4 +9,4 @@ push:
 	docker push ${IMAGE}:${VERSION}
 
 run:
-	docker run --rm -it ${IMAGE}:${VERSION} --hostname foo.bar --cert-days 3650
+	docker run --rm -it ${IMAGE}:${VERSION} --hostname foo.bar --cert-days 3650 --allow-san foo.bar --allow-san-matcher contains
