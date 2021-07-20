@@ -13,6 +13,7 @@ _help() {
     --listen-port)            The port to listen on
     --upstream-addr)          The upstream address to forward traffic to (do not include port, use --upstream-port for port)
     --upstream-port)          The port to forward traffic to
+    --upstream-sni)           Set the SNI in the upstream tls connection
     --upstream-tls)           Set to connect to upstream using tls
     --path-prefix)            The incoming request path to match prefix on (default /)
     --prefix-rewrite)         The upstream request path to rewrite the prefix to (default /)
@@ -195,6 +196,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --upstream-port)
       UPSTREAM_PORT=$2
+      shift
+      shift
+      ;;
+    --upstream-sni)
+      UPSTREAM_SNI=$2
       shift
       shift
       ;;

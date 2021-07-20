@@ -49,6 +49,7 @@ The following environment variables with their defaults which can be overridden 
 |LISTEN_PORT|--listen-port|8443|Port to listen on|
 |UPSTREAM_ADDRESS|--upstream-addr|127.0.0.1|Address to proxy traffic to|
 |UPSTREAM_PORT|--upstream-port|8080|Port of upstream to proxy traffic to|
+|UPSTREAM_SNI|--upstream-sni|""|Set the SNI in the upstream tls connection|
 |UPSTREAM_TLS|--upstream-tls|false|Set to connect to upstream using tls|
 |PATH_PREFIX|--path-prefix|/|The incoming request path to match prefix on|
 |PREFIX_REWRITE|--prefix-rewrite|/|The upstream request path to rewrite the prefix to|

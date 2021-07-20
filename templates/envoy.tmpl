@@ -67,7 +67,9 @@ static_resources:
       name: envoy.transport_sockets.tls
       typed_config:
         "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+{{#UPSTREAM_SNI}}
         sni: {{ UPSTREAM_SNI }}
+{{/UPSTREAM_SNI}}
         common_tls_context: 
           validation_context: {}
 {{/UPSTREAM_TLS}}

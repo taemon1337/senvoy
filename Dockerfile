@@ -19,6 +19,7 @@ ENV ENVOY_HOME=/var/run/envoy \
     LISTEN_PORT=8443 \
     UPSTREAM_ADDRESS=127.0.0.1 \
     UPSTREAM_PORT=8080 \
+    UPSTREAM_SNI="" \
     UPSTREAM_TLS="" \
     PATH_PREFIX="/" \
     PREFIX_REWRITE="/" \
