@@ -62,6 +62,15 @@ static_resources:
               socket_address:
                 address: {{ UPSTREAM_ADDRESS }}
                 port_value: {{ UPSTREAM_PORT }}
+{{#UPSTREAM_TLS}}
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+        sni: {{ UPSTREAM_SNI }}
+        common_tls_context: 
+          validation_context: {}
+{{/UPSTREAM_TLS}}
 admin:
   access_log_path: /dev/null
   address:
