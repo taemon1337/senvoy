@@ -14,7 +14,7 @@ _help() {
     --upstream-addr)          The upstream address to forward traffic to (do not include port, use --upstream-port for port)
     --upstream-port)          The port to forward traffic to
     --path-prefix)            The incoming request path to match prefix on (default /)
-    --path-rewrite)           The upstream request path to rewrite the prefix to (default /)
+    --prefix-rewrite)         The upstream request path to rewrite the prefix to (default /)
     --metrics-addr)           The address to serve Envoy admin metrics from
     --metrics-port)           The port to serve Envoy admin metrics from
     --connect-timeout)        The amount of time '0.25s' to wait for upstream to connect
@@ -202,8 +202,8 @@ while [[ $# -gt 0 ]]; do
       shift
       shift
       ;;
-    --path-rewrite)
-      PATH_REWRITE=$2
+    --prefix-rewrite)
+      PREFIX_REWRITE=$2
       shift
       shift
       ;;

@@ -50,7 +50,7 @@ The following environment variables with their defaults which can be overridden 
 |UPSTREAM_ADDRESS|--upstream-addr|127.0.0.1|Address to proxy traffic to|
 |UPSTREAM_PORT|--upstream-port|8080|Port of upstream to proxy traffic to|
 |PATH_PREFIX|--path-prefix|/|The incoming request path to match prefix on|
-|PATH_REWRITE|--path-rewrite|/|The upstream request path to rewrite the prefix to|
+|PREFIX_REWRITE|--prefix-rewrite|/|The upstream request path to rewrite the prefix to|
 |METRICS_ADDRESS|--metrics-addr|0.0.0.0|Address to host admin metrics on|
 |METRICS_PORT|--metrics-port|8082|Port of metrics admin|
 |CONNECT_TIMEOUT|--connect-timeout|0.25s|Length of time to wait for upstream|

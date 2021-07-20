@@ -28,7 +28,7 @@ static_resources:
               - match:
                   prefix: {{ PATH_PREFIX }}
                 route:
-                  path_rewrite: {{ PATH_REWRITE }}
+                  prefix_rewrite: {{ PREFIX_REWRITE }}
                   cluster: upstream_cluster
       transport_socket:
         name: envoy.transport_sockets.tls
