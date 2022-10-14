@@ -26,6 +26,7 @@ CERT_RSABITS=${CERT_RSABITS:-4096}
 ALLOW_SAN=${ALLOW_SAN:-""}
 ALLOW_SAN_MATCHER=${ALLOW_SAN_MATCHER:-exact}
 SNI_TEMPLATE=/usr/local/src/sni.tmpl
+SNI_ROUTER_TEMPLATE=/usr/local/src/sni-router.tmpl
 ROUTES=() # sni routes 'i.e. <server-name>=<upstream_host:port>'
 DRYRUN=${DRYRUN:-""}
 
@@ -59,6 +60,7 @@ _help() {
     --cert-rsa-bits)          The number of rsa bits to use in the self-signed cert
     --cert-subject)           The certificate subject to use in the self-signed cert
     --hostname)               The hostname to use in the CN of the self-signed cert
+    --sni-router)             Alias for '--envoy-template sni-router.tmpl'
     --sni)                    Alias for '--envoy-template sni.tmpl'
     --route)                  When using --sni, --route maps the servername to upstream host:port
                               i.e. --route incoming.com=upstream.local:8443
@@ -157,6 +159,7 @@ _routify() {
   local upstream_host=$(echo "${upstream}" | awk -F: '{print $1}')
   local upstream_port=$(echo "${upstream}" | awk -F: '{print $2}')
   if [[ "${upstream_port}" == "" ]]; then upstream_port="443"; fi
+  if [[ "${id}" == "" ]]; then id="wildcard"; fi
   echo "- id: ${id}"
   echo "  servername: \"${servername}\""
   echo "  upstream_addr: ${upstream_host}"
@@ -171,7 +174,7 @@ _datayaml() {
     fi
   done
 
-  if [[ "${ENVOY_TEMPLATE}" == "${SNI_TEMPLATE}" ]]; then
+  if [[ "${ENVOY_TEMPLATE}" == "${SNI_ROUTER_TEMPLATE}" ]]; then
     echo "ROUTES:"
     for rt in "${ROUTES[@]}"; do
       _routify "${rt}"
@@ -230,6 +233,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --sni)
       ENVOY_TEMPLATE="${SNI_TEMPLATE}"
+      shift
+      ;;
+    --sni-router)
+      ENVOY_TEMPLATE="${SNI_ROUTER_TEMPLATE}"
       shift
       ;;
     --route)

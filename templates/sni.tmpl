@@ -10,33 +10,30 @@ static_resources:
       typed_config:
         "@type": type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
     filter_chains:
-{{#ROUTES}}
-    - filter_chain_match:
-        server_names:
-          - "{{servername}}"
-      filters:
-        - name: envoy.filters.network.tcp_proxy
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
-            cluster: upstream_cluster_{{id}}
-            stat_prefix: sni
-{{/ROUTES}}
+    - filters:
+      - name: envoy.filters.network.sni_dynamic_forward_proxy
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.sni_dynamic_forward_proxy.v3.FilterConfig
+          port_value: 443
+          dns_cache_config:
+            name: dynamic_forward_proxy_cache_config
+            dns_lookup_family: V4_ONLY
+      - name: envoy.tcp_proxy
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+          stat_prefix: tcp
+          cluster: dynamic_forward_proxy_cluster
   clusters:
-{{#ROUTES}}
-  - name: upstream_cluster_{{id}}
-    type: LOGICAL_DNS
+  - name: dynamic_forward_proxy_cluster
+    lb_policy: CLUSTER_PROVIDED
     connect_timeout: {{ CONNECT_TIMEOUT }}
-    dns_lookup_family: V4_ONLY
-    load_assignment:
-      cluster_name: upstream_cluster_{{id}}
-      endpoints:
-      - lb_endpoints:
-        - endpoint:
-            address:
-              socket_address:
-                address: {{upstream_addr}}
-                port_value: {{upstream_port}}
-{{/ROUTES}}
+    cluster_type:
+      name: envoy.clusters.dynamic_forward_proxy
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.clusters.dynamic_forward_proxy.v3.ClusterConfig
+        dns_cache_config:
+          name: dynamic_forward_proxy_cache_config
+          dns_lookup_family: V4_ONLY
 admin:
   access_log_path: /dev/null
   address:
