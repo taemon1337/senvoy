@@ -25,6 +25,9 @@ CERT_DAYS=${CERT_DAYS:-365}
 CERT_RSABITS=${CERT_RSABITS:-4096}
 ALLOW_SAN=${ALLOW_SAN:-""}
 ALLOW_SAN_MATCHER=${ALLOW_SAN_MATCHER:-exact}
+SNI_TEMPLATE=/usr/local/src/sni.tmpl
+ROUTES=() # sni routes 'i.e. <server-name>=<upstream_host:port>'
+DRYRUN=${DRYRUN:-""}
 
 _help() {
   cat << EOF
@@ -56,6 +59,10 @@ _help() {
     --cert-rsa-bits)          The number of rsa bits to use in the self-signed cert
     --cert-subject)           The certificate subject to use in the self-signed cert
     --hostname)               The hostname to use in the CN of the self-signed cert
+    --sni)                    Alias for '--envoy-template sni.tmpl'
+    --route)                  When using --sni, --route maps the servername to upstream host:port
+                              i.e. --route incoming.com=upstream.local:8443
+    --dryrun                  Print the rendered config and exit
 
   ENVOY_OPTIONS:
     Any additional arguments not matching an above option will be passed to the Envoy entrypoint.
@@ -87,7 +94,6 @@ _gencerts() {
     cat ${CERT_FILE} > $key_file
     export CERT_FILE=$key_file
   fi
-
 
   if [[ -f "${CERT_FILE}" || -f "${KEY_FILE}" ]]; then
     echo "[CERT] Certificate: ${CERT_FILE}, Key: ${KEY_FILE}, CA: ${CA_FILE}"
@@ -142,11 +148,35 @@ _validate() {
   fi
 }
 
+# turn sni=host:port into sni yaml
+_routify() {
+  local route="$1"
+  local servername=$(echo "${route}" | awk -F= '{print $1}')
+  local id=$(echo "${servername}" | tr -d '.*')
+  local upstream=$(echo "${route}" | awk -F= '{print $2}')
+  local upstream_host=$(echo "${upstream}" | awk -F: '{print $1}')
+  local upstream_port=$(echo "${upstream}" | awk -F: '{print $2}')
+  if [[ "${upstream_port}" == "" ]]; then upstream_port="443"; fi
+  echo "- id: ${id}"
+  echo "  servername: \"${servername}\""
+  echo "  upstream_addr: ${upstream_host}"
+  echo "  upstream_port: ${upstream_port}"
+}
+
 # print all env vars as key: value yaml
 _datayaml() {
   for var in $(compgen -e); do
-    echo "${var}: ${!var}"
+    if [[ "${var}" != "ROUTES" ]] && [[ ! -z "${!var}" ]]; then
+      echo "${var}: ${!var}"
+    fi
   done
+
+  if [[ "${ENVOY_TEMPLATE}" == "${SNI_TEMPLATE}" ]]; then
+    echo "ROUTES:"
+    for rt in "${ROUTES[@]}"; do
+      _routify "${rt}"
+    done
+  fi
 }
 
 _config() {
@@ -167,7 +197,6 @@ _main() {
   mkdir -p $ENVOY_HOME
 
   _gencerts
-
   _validate
 
   echo "Writing data variables to $DATA_FILE"
@@ -177,6 +206,10 @@ _main() {
   echo "[CONFIG] Generating envoy config ${ENVOY_CONFIG}..."
   _config
   cat $ENVOY_CONFIG
+
+  if [[ "${DRYRUN}" == "1" ]]; then
+    exit 0
+  fi
 
   echo "[START] ${@}"
   _start ${@}
@@ -191,42 +224,51 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     --envoy-template)
-      ENVOY_TEMPLATE=$2
+      ENVOY_TEMPLATE="$2"
       shift
       shift
-      ;; 
+      ;;
+    --sni)
+      ENVOY_TEMPLATE="${SNI_TEMPLATE}"
+      shift
+      ;;
+    --route)
+      ROUTES+=("$2")
+      shift
+      shift
+      ;;
     --envoy-config)
-      ENVOY_CONFIG=$2
+      ENVOY_CONFIG="$2"
       shift
       shift
       ;;
     --data-file)
-      DATA_FILE=$2
+      DATA_FILE="$2"
       shift
       shift
       ;;
     --listen-addr)
-      LISTEN_ADDRESS=$2
+      LISTEN_ADDRESS="$2"
       shift
       shift
       ;;
     --listen-port)
-      LISTEN_PORT=$2
+      LISTEN_PORT="$2"
       shift
       shift
       ;;
     --upstream-addr)
-      UPSTREAM_ADDRESS=$2
+      UPSTREAM_ADDRESS="$2"
       shift
       shift
       ;;
     --upstream-port)
-      UPSTREAM_PORT=$2
+      UPSTREAM_PORT="$2"
       shift
       shift
       ;;
     --upstream-sni)
-      UPSTREAM_SNI=$2
+      UPSTREAM_SNI="$2"
       shift
       shift
       ;;
@@ -235,42 +277,46 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --path-prefix)
-      PATH_PREFIX=$2
+      PATH_PREFIX="$2"
       shift
       shift
       ;;
     --prefix-rewrite)
-      PREFIX_REWRITE=$2
+      PREFIX_REWRITE="$2"
       shift
       shift
       ;;
     --metrics-addr)
-      METRICS_ADDRESS=$2
+      METRICS_ADDRESS="$2"
       shift
       shift
       ;;
     --metrics-port)
-      METRICS_PORT=$2
+      METRICS_PORT="$2"
       shift
       shift
       ;;
     --connect-timeout)
-      CONNECT_TIMEOUT=$2
+      CONNECT_TIMEOUT="$2"
       shift
       shift
       ;;
     --cert-file)
-      CERT_FILE=$2
+      CERT_FILE="$2"
       shift
       shift
       ;;
+    --dryrun)
+      DRYRUN=1
+      shift
+      ;;
     --key-file)
-      KEY_FILE=$2
+      KEY_FILE="$2"
       shift
       shift
       ;;
     --ca-file)
-      CA_FILE=$2
+      CA_FILE="$2"
       shift
       shift
       ;;
@@ -279,32 +325,32 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --allow-san)
-      ALLOW_SAN=$2
+      ALLOW_SAN="$2"
       shift
       shift
       ;;
     --allow-san-matcher)
-      ALLOW_SAN_MATCHER=$2
+      ALLOW_SAN_MATCHER="$2"
       shift
       shift
       ;;
     --cert-days)
-      CERT_DAYS=$2
+      CERT_DAYS="$2"
       shift
       shift
       ;;
     --cert-rsa-bits)
-      CERT_RSABITS=$2
+      CERT_RSABITS="$2"
       shift
       shift
       ;;
     --cert-subject)
-      CERT_SUBJECT=$2
+      CERT_SUBJECT="$2"
       shift
       shift
       ;;
     --hostname)
-      HOSTNAME=$2
+      HOSTNAME="$2"
       shift
       shift
       ;;

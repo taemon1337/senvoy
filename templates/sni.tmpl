@@ -1,0 +1,45 @@
+static_resources:
+  listeners:
+  - name: listener_0
+    address:
+      socket_address:
+        address: {{ LISTEN_ADDRESS }}
+        port_value: {{ LISTEN_PORT }}
+    listener_filters:
+    - name: envoy.filters.listener.tls_inspector
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
+    filter_chains:
+{{#ROUTES}}
+    - filter_chain_match:
+        server_names:
+          - "{{servername}}"
+      filters:
+        - name: envoy.filters.network.tcp_proxy
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+            cluster: upstream_cluster_{{id}}
+            stat_prefix: sni
+{{/ROUTES}}
+  clusters:
+{{#ROUTES}}
+  - name: upstream_cluster_{{id}}
+    type: LOGICAL_DNS
+    connect_timeout: {{ CONNECT_TIMEOUT }}
+    dns_lookup_family: V4_ONLY
+    load_assignment:
+      cluster_name: upstream_cluster_{{id}}
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: {{upstream_addr}}
+                port_value: {{upstream_port}}
+{{/ROUTES}}
+admin:
+  access_log_path: /dev/null
+  address:
+    socket_address:
+      address: {{ METRICS_ADDRESS }}
+      port_value: {{ METRICS_PORT }}

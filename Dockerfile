@@ -1,4 +1,4 @@
-FROM envoyproxy/envoy:v1.18-latest
+FROM envoyproxy/envoy:v1.23-latest
 
 USER root
 
@@ -30,7 +30,8 @@ ENV ENVOY_HOME=/var/run/envoy \
     CERT_DAYS=365 \
     CERT_RSABITS=4096 \
     ALLOW_SAN="" \
-    ALLOW_SAN_MATCHER=exact
+    ALLOW_SAN_MATCHER=exact \
+    SNI=""
 
 ENTRYPOINT ["/bin/bash", "/usr/local/bin/run.sh"]
 CMD [""]

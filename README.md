@@ -37,6 +37,15 @@ A more live/production usage may look something like this:
     --upstream-port 80
 ```
 
+## SNI Mode (--sni|--envoy-template /usr/local/src/sni.tmpl)
+
+With SNI mode, each incoming TLS request will be preread to load the server_name of the TLS Client Hello packet and routed based on that servername.
+
+```
+  docker run --rm -it -p 8443:8443 taemon1337/senvoy:latest --sni --route github.com=github.local --route *.local=default.local:8443
+```
+
+
 The following environment variables with their defaults which can be overridden are shown below:
 
 |Environment Variable| Command Line option|Default Value|
@@ -64,6 +73,9 @@ The following environment variables with their defaults which can be overridden 
 |REQUIRE_CLIENT_CERT|--require-client-cert|false|If true, require client tls cert (mutual auth)|
 |ALLOW_SAN|--allow-san|""|If set, only allow matching SANs|
 |ALLOW_SAN_MATCHER|--allow-san-matcher|exact|The envoy string matcher to use, can be exact, contains, prefix, suffix|
+|SNI|--sni||alias for '--envoy-template /usr/local/src/sni.tmpl' uses SNI routing template|
+|ROUTES|--route <sni=upstream>|()|Use --route <servername>=<upstream:port> to create SNI routes|
+|DRYRUN|--dryrun||Use to test config and exit|
 
 ## Docker entrypoint wrapper
 
