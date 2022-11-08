@@ -12,7 +12,7 @@ run:
 	docker run --rm -it ${IMAGE}:${VERSION} --upstream-addr upstream.local --hostname foo.bar --cert-days 3650 --allow-san foo.bar --allow-san-matcher contains
 
 sni:
-	docker run --rm -it -e LISTEN_PORT=9443 ${IMAGE}:${VERSION} --sni
+	docker run --rm -it -e LISTEN_PORT=9443 ${IMAGE}:${VERSION} --sni --log /dev/stdout
 
 sni-router:
 	docker run --rm -it -e LISTEN_PORT=9443 ${IMAGE}:${VERSION} --sni-router --route github.com=localhost:8443 --route foo.com=1.2.3.4:1234 --route in.com=out.com --route *.local=default.local --route *.star=star.local

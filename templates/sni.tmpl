@@ -35,7 +35,7 @@ static_resources:
           name: dynamic_forward_proxy_cache_config
           dns_lookup_family: V4_ONLY
 admin:
-  access_log_path: /dev/null
+  access_log_path: {{LOGPATH}}
   address:
     socket_address:
       address: {{ METRICS_ADDRESS }}

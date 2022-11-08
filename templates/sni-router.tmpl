@@ -38,7 +38,7 @@ static_resources:
                 port_value: {{upstream_port}}
 {{/ROUTES}}
 admin:
-  access_log_path: /dev/null
+  access_log_path: {{LOGPATH}}
   address:
     socket_address:
       address: {{ METRICS_ADDRESS }}

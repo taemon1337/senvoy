@@ -29,6 +29,7 @@ SNI_TEMPLATE=/usr/local/src/sni.tmpl
 SNI_ROUTER_TEMPLATE=/usr/local/src/sni-router.tmpl
 ROUTES=() # sni routes 'i.e. <server-name>=<upstream_host:port>'
 DRYRUN=${DRYRUN:-""}
+LOGPATH=/dev/null
 
 _help() {
   cat << EOF
@@ -65,6 +66,7 @@ _help() {
     --route)                  When using --sni, --route maps the servername to upstream host:port
                               i.e. --route incoming.com=upstream.local:8443
     --dryrun                  Print the rendered config and exit
+    --log                     Set logs to output to specific path (i.e. /dev/stdout, /dev/stderr)
 
   ENVOY_OPTIONS:
     Any additional arguments not matching an above option will be passed to the Envoy entrypoint.
@@ -261,6 +263,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --listen-port)
       LISTEN_PORT="$2"
+      shift
+      shift
+      ;;
+    --log)
+      LOGPATH="$2"
       shift
       shift
       ;;

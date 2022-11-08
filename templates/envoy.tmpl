@@ -74,7 +74,7 @@ static_resources:
 {{/UPSTREAM_SNI}}
 {{/UPSTREAM_TLS}}
 admin:
-  access_log_path: /dev/null
+  access_log_path: {{LOGPATH}}
   address:
     socket_address:
       address: {{ METRICS_ADDRESS }}
