@@ -60,6 +60,10 @@ The following environment variables with their defaults which can be overridden 
 |ENVOY_CERTS|--envoy-certs|/var/run/envoy/certs|Location to store envoy generated/copied certs|
 |LISTEN_ADDRESS|--listen-addr|0.0.0.0|Address to list on|
 |LISTEN_PORT|--listen-port|8443|Port to listen on|
+|LISTEN_HTTP_ADDRESS|--listen-http-addr|""|Address to listen for/proxy HTTP traffic on|
+|LISTEN_HTTP_PORT|--listen-http-port|8080|Port to listen for/proxy HTTP traffic on|
+|UPSTREAM_HTTP_ADDRESS|--upstream-http-addr|127.0.0.1|Address to proxy HTTP traffic to|
+|UPSTREAM_HTTP_PORT|--upstream-http-port|80|Port to proxy HTTP traffic to|
 |UPSTREAM_ADDRESS|--upstream-addr|127.0.0.1|Address to proxy traffic to|
 |UPSTREAM_PORT|--upstream-port|8080|Port of upstream to proxy traffic to|
 |UPSTREAM_SNI|--upstream-sni|""|Set the SNI in the upstream tls connection|

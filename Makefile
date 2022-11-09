@@ -1,6 +1,6 @@
 SHELL=/bin/bash
 IMAGE=taemon1337/senvoy
-VERSION=1.0.2
+VERSION=1.0.3
 
 build:
 	docker build -t ${IMAGE}:${VERSION} .
@@ -10,6 +10,9 @@ push:
 
 run:
 	docker run --rm -it ${IMAGE}:${VERSION} --upstream-addr upstream.local --hostname foo.bar --cert-days 3650 --allow-san foo.bar --allow-san-matcher contains
+
+http:
+	docker run --rm -it ${IMAGE}:${VERSION} --upstream-addr upstream.local --hostname foo.bar --cert-days 3650 --allow-san foo.bar --allow-san-matcher contains --listen-http-addr 0.0.0.0 --upstream-http-addr github.com
 
 sni:
 	docker run --rm -it -e LISTEN_PORT=9443 ${IMAGE}:${VERSION} --sni --log /dev/stdout

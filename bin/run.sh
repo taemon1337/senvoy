@@ -11,6 +11,10 @@ CA_FILE=${CA_FILE:-"${ENVOY_CERTS}/server.crt"}
 REQUIRE_CLIENT_CERT=${REQUIRE_CLIENT_CERT:-false}
 LISTEN_ADDRESS=${LISTEN_ADDRESS:-0.0.0.0}
 LISTEN_PORT=${LISTEN_PORT:-8443}
+LISTEN_HTTP_ADDRESS=${LISTEN_HTTP_ADDRESS:-""}
+LISTEN_HTTP_PORT=${LISTEN_HTTP_PORT:-80}
+UPSTREAM_HTTP_ADDRESS=${UPSTREAM_HTTP_ADDRESS:-127.0.0.1}
+UPSTREAM_HTTP_PORT=${UPSTREAM_HTTP_PORT:-80}
 UPSTREAM_ADDRESS=${UPSTREAM_ADDRESS:-127.0.0.1}
 UPSTREAM_PORT=${UPSTREAM_PORT:-8080}
 UPSTREAM_SNI=${UPSTREAM_SNI:-""}
@@ -42,6 +46,10 @@ _help() {
     --envoy-config)           The path to render the envoy template into that envoy will use
     --listen-addr)            The socket address to listen on (do not include port, use --listen-port for port)
     --listen-port)            The port to listen on
+    --listen-http-addr)       The address to listen for/proxy HTTP traffic on (default is '' and will NOT listen)
+    --listen-http-port)       The port to listen for/proxy HTTP traffic on
+    --upstream-http-addr)     The address to proxy HTTP traffic to
+    --upstream-http-port)     The port to proxy HTTP traffic to
     --upstream-addr)          The upstream address to forward traffic to (do not include port, use --upstream-port for port)
     --upstream-port)          The port to forward traffic to
     --upstream-sni)           Set the SNI in the upstream tls connection
@@ -266,8 +274,28 @@ while [[ $# -gt 0 ]]; do
       shift
       shift
       ;;
+    --listen-http-addr)
+      LISTEN_HTTP_ADDRESS="$2"
+      shift
+      shift
+      ;;
+    --listen-http-port)
+      LISTEN_HTTP_PORT="$2"
+      shift
+      shift
+      ;;
     --log)
       LOGPATH="$2"
+      shift
+      shift
+      ;;
+    --upstream-http-addr)
+      UPSTREAM_HTTP_ADDRESS="$2"
+      shift
+      shift
+      ;;
+    --upstream-http-port)
+      UPSTREAM_HTTP_PORT="$2"
       shift
       shift
       ;;
