@@ -1,19 +1,50 @@
 static_resources:
   listeners:
-{{#LISTEN_HTTP_ADDRESS}}
+{{#HTTP_FORWARD_PROXY}}
   - name: listener_http
     address:
       socket_address:
         address: {{ LISTEN_HTTP_ADDRESS }}
         port_value: {{ LISTEN_HTTP_PORT }}
+
     filter_chains:
-    - filters:
-      - name: envoy.filters.network.tcp_proxy
-        typed_config:
-          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
-          cluster: http_upstream_cluster
-          stat_prefix: http_proxy
-{{/LISTEN_HTTP_ADDRESS}}
+    # http forward proxy
+    - filter_chain_match:
+        destination_port: {{ LISTEN_HTTP_PORT }}
+      filters:
+        - name: envoy.filters.network.http_connection_manager
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+            stat_prefix: ingress_http
+            route_config:
+              name: local_route
+              virtual_hosts:
+              - name: local_service
+                domains: ["*"]
+                routes:
+                - match:
+                    prefix: "/force-host-rewrite"
+                  route:
+                    cluster: dynamic_forward_proxy_cluster_http
+                  typed_per_filter_config:
+                    envoy.filters.http.dynamic_forward_proxy:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.dynamic_forward_proxy.v3.PerRouteConfig
+                      host_rewrite_literal: www.example.org
+                - match:
+                    prefix: "/"
+                  route:
+                    cluster: dynamic_forward_proxy_cluster_http
+            http_filters:
+            - name: envoy.filters.http.dynamic_forward_proxy
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.http.dynamic_forward_proxy.v3.FilterConfig
+                dns_cache_config:
+                  name: dynamic_forward_proxy_cache_config
+                  dns_lookup_family: V4_ONLY
+            - name: envoy.filters.http.router
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+{{/HTTP_FORWARD_PROXY}}
   - name: listener_0
     address:
       socket_address:
@@ -24,7 +55,11 @@ static_resources:
       typed_config:
         "@type": type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
     filter_chains:
-    - filters:
+
+    # SNI forward proxy
+    - filter_chain_match:
+        destination_port: {{ LISTEN_PORT }}
+      filters:
       - name: envoy.filters.network.sni_dynamic_forward_proxy
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.sni_dynamic_forward_proxy.v3.FilterConfig
@@ -37,22 +72,20 @@ static_resources:
           "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
           stat_prefix: tcp
           cluster: dynamic_forward_proxy_cluster
+
   clusters:
-{{#LISTEN_HTTP_ADDRESS}}
-  - name: http_upstream_cluster
-    type: LOGICAL_DNS
+{{#HTTP_FORWARD_PROXY}}
+  - name: dynamic_forward_proxy_cluster_http
     connect_timeout: {{ CONNECT_TIMEOUT }}
-    dns_lookup_family: V4_ONLY
-    load_assignment:
-      cluster_name: upstream_cluster
-      endpoints:
-      - lb_endpoints:
-        - endpoint:
-            address:
-              socket_address:
-                address: {{ UPSTREAM_HTTP_ADDRESS }}
-                port_value: {{ UPSTREAM_HTTP_PORT }}
-{{/LISTEN_HTTP_ADDRESS}}
+    lb_policy: CLUSTER_PROVIDED
+    cluster_type:
+      name: envoy.clusters.dynamic_forward_proxy
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.clusters.dynamic_forward_proxy.v3.ClusterConfig
+        dns_cache_config:
+          name: dynamic_forward_proxy_cache_config
+          dns_lookup_family: V4_ONLY
+{{/HTTP_FORWARD_PROXY}}
   - name: dynamic_forward_proxy_cluster
     lb_policy: CLUSTER_PROVIDED
     connect_timeout: {{ CONNECT_TIMEOUT }}
