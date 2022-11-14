@@ -60,7 +60,7 @@ The following environment variables with their defaults which can be overridden 
 |ENVOY_CERTS|--envoy-certs|/var/run/envoy/certs|Location to store envoy generated/copied certs|
 |LISTEN_ADDRESS|--listen-addr|0.0.0.0|Address to list on|
 |LISTEN_PORT|--listen-port|8443|Port to listen on|
-|LISTEN_HTTP_ADDRESS|--listen-http-addr|""|Address to listen for/proxy HTTP traffic on|
+|LISTEN_HTTP_ADDRESS|--listen-http-addr|0.0.0.0|Address to listen for/proxy HTTP traffic on|
 |LISTEN_HTTP_PORT|--listen-http-port|8080|Port to listen for/proxy HTTP traffic on|
 |UPSTREAM_HTTP_ADDRESS|--upstream-http-addr|127.0.0.1|Address to proxy HTTP traffic to|
 |UPSTREAM_HTTP_PORT|--upstream-http-port|80|Port to proxy HTTP traffic to|
@@ -83,7 +83,7 @@ The following environment variables with their defaults which can be overridden 
 |ALLOW_SAN_MATCHER|--allow-san-matcher|exact|The envoy string matcher to use, can be exact, contains, prefix, suffix|
 ||--sni||alias for '--envoy-template /usr/local/src/sni.tmpl|
 ||--sni-router||alias for '--envoy-template /usr/local/src/sni-router.tmpl' uses SNI routing template|
-|ROUTES|--route <sni=upstream>|()|Use --route <servername>=<upstream:port> to create SNI routes|
+|ROUTES|--route <sni=upstream>|()|Use --route <servername>=<upstream:port> to create SNI routes (in --sni or --sni-router mode)|
 |DRYRUN|--dryrun||Use to test config and exit|
 
 ## Docker entrypoint wrapper

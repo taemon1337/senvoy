@@ -50,14 +50,9 @@ static_resources:
       socket_address:
         address: {{ LISTEN_ADDRESS }}
         port_value: {{ LISTEN_PORT }}
-    listener_filters:
-    - name: envoy.filters.listener.tls_inspector
-      typed_config:
-        "@type": type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
     filter_chains:
 {{#ROUTES}}
-{{#route_tls}}
-    - filters:
+      filters:
         - name: envoy.filters.network.http_connection_manager
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
@@ -78,6 +73,7 @@ static_resources:
             - name: envoy.filters.http.router
               typed_config:
                 "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+{{#route_tls}}
       transport_socket:
         name: envoy.transport_sockets.tls
         typed_config:
@@ -103,42 +99,7 @@ static_resources:
                 filename: {{route_ca}}
 {{/route_ca}}
 {{/route_tls}}
-{{^route_tls}}
-    - filter_chain_match:
-        server_names:
-          - "{{servername}}"
-      filters:
-        - name: envoy.filters.network.sni_dynamic_forward_proxy
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.filters.network.sni_dynamic_forward_proxy.v3.FilterConfig
-            port_value: {{sni_port}}
-            dns_cache_config:
-              name: dynamic_forward_proxy_cache_config
-              dns_lookup_family: V4_ONLY
-        - name: envoy.tcp_proxy
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
-            stat_prefix: sni
-            cluster: dynamic_forward_proxy_cluster
-{{/route_tls}}
 {{/ROUTES}}
-
-    # SNI forward proxy
-    - filter_chain_match:
-        transport_protocol: "tls"
-      filters:
-        - name: envoy.filters.network.sni_dynamic_forward_proxy
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.filters.network.sni_dynamic_forward_proxy.v3.FilterConfig
-            port_value: 443
-            dns_cache_config:
-              name: dynamic_forward_proxy_cache_config
-              dns_lookup_family: V4_ONLY
-        - name: envoy.tcp_proxy
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
-            stat_prefix: sni
-            cluster: dynamic_forward_proxy_cluster
 
   clusters:
 {{#HTTP_FORWARD_PROXY}}

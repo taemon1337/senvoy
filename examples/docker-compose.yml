@@ -1,0 +1,73 @@
+version: "3"
+services:
+  demo:
+    image: quangnhut123/demo-api:latest
+    networks:
+      - frontend
+  guard:
+    image: taemon1337/senvoy:1.0.6
+    command:
+      - "--listen-port"
+      - "8443"
+      - "--hostname"
+      - "guard"
+      - "--upstream-addr"
+      - "demo"
+      - "--upstream-port"
+      - "3000"
+#      - "--allow-san"
+#      - "admin.user"
+      - "--log"
+      - "/dev/stdout"
+      - "--log-level"
+      - "debug"
+    networks:
+      - frontend
+    depends_on:
+      - demo
+  proxy:
+    image: taemon1337/senvoy:1.0.6
+    command:
+      - "--listen-port"
+      - "8443"
+      - "--listen-http-port"
+      - "8080"
+      - "--hostname"
+      - "proxy"
+      - "--tls"
+      - "--route"
+      - "proxy=guard:8443"
+      - "--route-tls"
+      - "proxy"
+      - "--route-cert"
+      - "proxy=/var/run/envoy/certs/server.crt"
+      - "--route-key"
+      - "proxy=/var/run/envoy/certs/server.key"
+      - "--route-upstream-tls"
+      - "proxy"
+      - "--route-upstream-insecure"
+      - "proxy"
+      - "--log"
+      - "/dev/stdout"
+      - "--log-level"
+      - "trace"
+    ports:
+      - 80:8080
+      - 443:8443
+    networks:
+      - frontend
+    depends_on:
+      - guard
+  curler:
+    image: curlimages/curl:latest
+    command:
+      - "/bin/sh"
+      - "-c"
+      - "while true; do curl -kLsS -v https://proxy:8443/ ; sleep 30; done"
+    networks:
+      - frontend
+    depends_on:
+      - proxy
+networks:
+  frontend:
+  backend:
