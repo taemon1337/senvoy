@@ -244,3 +244,9 @@ static_resources:
 {{/upstream_tls}}
 {{/TLS_ROUTES}}
 
+admin:
+  access_log_path: {{LOGPATH}}
+  address:
+    socket_address:
+      address: {{ METRICS_ADDRESS }}
+      port_value: {{ METRICS_PORT }}

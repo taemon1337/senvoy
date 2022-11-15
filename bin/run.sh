@@ -470,6 +470,16 @@ while [[ $# -gt 0 ]]; do
       shift
       shift
       ;;
+    --metrics-port)
+      METRICS_PORT="$2"
+      shift
+      shift
+      ;;
+    --metrics-addr)
+      METRICS_ADDRESS="$2"
+      shift
+      shift
+      ;;
     --log)
       LOGPATH="$2"
       shift
