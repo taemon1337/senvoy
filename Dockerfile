@@ -20,12 +20,7 @@ ENV ENVOY_HOME=/var/run/envoy \
     LISTEN_HTTP_ADDRESS="" \
     LISTEN_HTTP_PORT=8080 \
     HTTP_FORWARD_PROXY="" \
-    UPSTREAM_HTTP_ADDRESS=127.0.0.1 \
-    UPSTREAM_HTTP_PORT=80 \
-    UPSTREAM_ADDRESS=127.0.0.1 \
-    UPSTREAM_PORT=8080 \
-    UPSTREAM_SNI="" \
-    UPSTREAM_TLS="" \
+    SNI_FORWARD_PROXY="" \
     PATH_PREFIX="/" \
     PREFIX_REWRITE="/" \
     METRICS_ADDRESS=0.0.0.0 \
@@ -35,8 +30,7 @@ ENV ENVOY_HOME=/var/run/envoy \
     CERT_DAYS=365 \
     CERT_RSABITS=4096 \
     ALLOW_SAN="" \
-    ALLOW_SAN_MATCHER=exact \
-    SNI=""
+    ALLOW_SAN_MATCHER=exact
 
 ENTRYPOINT ["/bin/bash", "/usr/local/bin/run.sh"]
 CMD [""]

@@ -14,27 +14,41 @@ build:
 push:
 	docker push ${IMAGE}:${VERSION}
 
-run:
-	docker run --rm -it ${IMAGE}:${VERSION} --upstream-addr upstream.local --hostname foo.bar --cert-days 3650 --allow-san foo.bar --allow-san-matcher contains
-
-http:
-	docker run --rm -it ${IMAGE}:${VERSION} --upstream-addr upstream.local --hostname foo.bar --cert-days 3650 --allow-san foo.bar --allow-san-matcher contains --listen-http-addr 0.0.0.0 --upstream-http-addr github.com
-
 sni:
 	docker run --rm -it -p 443:9443 -p 80:8080 -e LISTEN_PORT=9443 ${IMAGE}:${VERSION} \
-		--sni \
+		--sni-route ${DOM}=${DOM} \
 		--log /dev/stdout \
-		--log-level debug \
-		--http-forward-proxy \
-		--route ${DOM}=${DOM} \
-		--route-upstream-tls ${DOM} \
-		--route-upstream-ca ${DOM}=${CAFILE} \
-		--route-upstream-cert ${DOM}=${CERT_FILE} \
-		--route-upstream-key ${DOM}=${KEY_FILE} \
-		--route-tls ${DOM} \
-		--route-cert ${DOM}=${CERT_FILE} \
-		--route-key ${DOM}=${KEY_FILE} \
-		--route-require-client-cert ${DOM}
+		--log-level debug
 
-sni-router:
-	docker run --rm -it -e LISTEN_PORT=9443 ${IMAGE}:${VERSION} --sni-router --route github.com=localhost:8443 --route foo.com=1.2.3.4:1234 --route in.com=out.com --route *.local=default.local --route *.star=star.local
+tls:
+	docker run --rm -it -p 443:9443 -p 80:8080 -e LISTEN_PORT=9443 ${IMAGE}:${VERSION} \
+		--tls-route ${DOM}=${DOM} \
+		--tls-route-config ${DOM}=default \
+		--tls-upstream-config ${DOM}=default \
+		--tls-config-cert default=${CERT_FILE} \
+		--tls-config-key default=${KEY_FILE} \
+		--tls-config-insecure default \
+		--tls-config-upstream-tls default \
+		--log /dev/stdout \
+		--log-level debug
+
+forward:
+	docker run --rm -it -p 443:9443 -p 80:8080 -e LISTEN_PORT=9443 ${IMAGE}:${VERSION} \
+		--http-forward-proxy \
+		--sni-forward-proxy \
+		--log /dev/stdout \
+		--log-level debug
+
+static:
+	docker run --rm -it -p 443:9443 -p 80:8080 -e LISTEN_PORT=9443 ${IMAGE}:${VERSION} \
+		--http-forward-proxy \
+		--sni-forward-proxy \
+		--tls-route ${DOM}=${DOM} \
+		--tls-route-config ${DOM}=default \
+		--tls-config-cert default=${CERT_FILE} \
+		--tls-config-key default=${KEY_FILE} \
+		--tls-config-insecure default \
+		--sni-route github.com=localhost:8443 \
+		--log /dev/stdout \
+		--log-level debug
+

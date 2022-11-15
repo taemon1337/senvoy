@@ -9,19 +9,7 @@ CERT_FILE=${CERT_FILE:-"${ENVOY_CERTS}/server.crt"}
 KEY_FILE=${KEY_FILE:-"${ENVOY_CERTS}/server.key"}
 CA_FILE=${CA_FILE:-"${ENVOY_CERTS}/server.crt"}
 REQUIRE_CLIENT_CERT=${REQUIRE_CLIENT_CERT:-false}
-LISTEN_ADDRESS=${LISTEN_ADDRESS:-0.0.0.0}
-LISTEN_PORT=${LISTEN_PORT:-8443}
-LISTEN_HTTP_ADDRESS=${LISTEN_HTTP_ADDRESS:-0.0.0.0}
-LISTEN_HTTP_PORT=${LISTEN_HTTP_PORT:-80}
-HTTP_FORWARD_PROXY=${HTTP_FORWARD_PROXY:-""}
-UPSTREAM_HTTP_ADDRESS=${UPSTREAM_HTTP_ADDRESS:-127.0.0.1}
-UPSTREAM_HTTP_PORT=${UPSTREAM_HTTP_PORT:-80}
-UPSTREAM_ADDRESS=${UPSTREAM_ADDRESS:-127.0.0.1}
-UPSTREAM_PORT=${UPSTREAM_PORT:-8080}
-UPSTREAM_SNI=${UPSTREAM_SNI:-""}
-UPSTREAM_TLS=${UPSTREAM_TLS:-""}
-PATH_PREFIX=${PATH_PREFIX:-"/"}
-PREFIX_REWRITE=${PREFIX_REWRITE:-"/"}
+
 METRICS_ADDRESS=${METRICS_ADDRESS:-0.0.0.0}
 METRICS_PORT=${METRICS_PORT:-8082}
 CONNECT_TIMEOUT=${CONNECT_TIMEOUT:-"0.25s"}
@@ -33,22 +21,31 @@ ALLOW_SAN_MATCHER=${ALLOW_SAN_MATCHER:-exact}
 SNI_TEMPLATE=/usr/local/src/sni.tmpl
 TLS_TEMPLATE=/usr/local/src/tls.tmpl
 SNI_ROUTER_TEMPLATE=/usr/local/src/sni-router.tmpl
-ROUTES=() # sni routes 'i.e. <server-name>=<upstream_host:port>'
-ROUTES_SNI_PORTS=() # i.e. <server-name>=8443
-ROUTES_UPSTREAM_TLS=() # i.e. <server-name>
-ROUTES_UPSTREAM_INSECURE=() # i.e. <server-name>
-ROUTES_UPSTREAM_CAS=() # i.e. <server-name>=/etc/ssl/tls/ca.crt
-ROUTES_UPSTREAM_CERTS=() # i.e. <server-name>=/etc/ssl/tls/cert.crt
-ROUTES_UPSTREAM_KEYS=() # i.e. <server-name>=/etc/ssl/tls/cert.key
-ROUTES_UPSTREAM_PASSWORDS=() # i.e. <server-name>=priv-key-pass
-ROUTES_DOWNSTREAM_TLS=()
-ROUTES_DOWNSTREAM_MUTUAL=()
-ROUTES_DOWNSTREAM_INSECURE=()
-ROUTES_DOWNSTREAM_CAS=()
-ROUTES_DOWNSTREAM_CERTS=()
-ROUTES_DOWNSTREAM_KEYS=()
-ROUTES_DOWNSTREAM_PASSWORDS=()
-DRYRUN=${DRYRUN:-""}
+
+LISTEN_ADDRESS=${LISTEN_ADDRESS:-"0.0.0.0"}
+LISTEN_PORT=${LISTEN_PORT:-"8443"}
+LISTEN_HTTP_ADDRESS=${LISTEN_HTTP_ADDRESS:-"0.0.0.0"}
+LISTEN_HTTP_PORT=${LISTEN_HTTP_PORT:-"8080"}
+HTTP_FORWARD_PROXY=${HTTP_FORWARD_PROXY:-""}
+SNI_FORWARD_PROXY=${SNI_FORWARD_PROXY:-""}
+
+SNI_ROUTES=()
+SNI_ROUTE_DOMAINS=()
+TLS_ROUTES=()
+TLS_ROUTE_DOMAINS=()
+
+TLS_ROUTES_CONFIGS=()
+TLS_UPSTREAM_CONFIGS=()
+TLS_CONFIG_CAS=()
+TLS_CONFIG_CERTS=()
+TLS_CONFIG_KEYS=()
+TLS_CONFIG_KEY_PASSES=()
+TLS_CONFIG_INSECURES=()
+TLS_CONFIG_UPSTREAM_INSECURES=()
+TLS_CONFIG_UPSTREAM_TLS=()
+TLS_CONFIG_UPSTREAM_SNI=()
+TLS_INSPECTOR=""
+
 LOGPATH=/dev/null
 
 _help() {
@@ -58,61 +55,28 @@ _help() {
     This script is a wrapper around envoy's default entrypoint.
   OPTIONS:
     -h|--help)                Display this help menu
-    --envoy-template)         Override the TLS sidecar envoy template (a yaml with ENV vars that get envsubst'ed)
-    --envoy-config)           The path to render the envoy template into that envoy will use
     --listen-addr)            The socket address to listen on (do not include port, use --listen-port for port)
     --listen-port)            The port to listen on
     --listen-http-addr)       The address to listen for/proxy HTTP traffic on (default is '' and will NOT listen)
     --listen-http-port)       The port to listen for/proxy HTTP traffic on
-    --http-forward-proxy)     If set, use http forward proxy same as --sni to forward http traffic to
-    --upstream-http-addr)     The address to proxy HTTP traffic to
-    --upstream-http-port)     The port to proxy HTTP traffic to
-    --upstream-addr)          The upstream address to forward traffic to (do not include port, use --upstream-port for port)
-    --upstream-port)          The port to forward traffic to
-    --upstream-sni)           Set the SNI in the upstream tls connection
-    --upstream-tls)           Set to connect to upstream using tls
-    --path-prefix)            The incoming request path to match prefix on (default /)
-    --prefix-rewrite)         The upstream request path to rewrite the prefix to (default /)
-    --metrics-addr)           The address to serve Envoy admin metrics from
-    --metrics-port)           The port to serve Envoy admin metrics from
-    --connect-timeout)        The amount of time '0.25s' to wait for upstream to connect
-    --cert-file)              The certificate file to serve TLS using
-    --key-file)               The key file matching the --cert-file
-    --ca-file                 The CA file to validate client connections against (for mutual TLS)
-    --require-client-cert     If this flag is set (no value) then require the tls client to provide a TLS client cert
-    --allow-san               Only allow Subject Alternate Names (SAN) matching this value to connect
-    --allow-san-matcher       The type of matcher to use for the SAN, default is exact, can be contains, prefix, suffix (any envoy string matcher)
-    --cert-days)              The number of days to make the self-signed cert for
-    --cert-rsa-bits)          The number of rsa bits to use in the self-signed cert
-    --cert-subject)           The certificate subject to use in the self-signed cert
-    --hostname)               The hostname to use in the CN of the self-signed cert
-    --sni-router)             Alias for '--envoy-template sni-router.tmpl'
-    --sni)                    Alias for '--envoy-template sni.tmpl'
-    --sni-port)               With dynamic SNI routes you can still set the upstream port
-                              i.e. --sni-port servername=8443
-    --tls)                    Alias for '--envoy-template tls.tmpl'
-    --route)                  When using --sni, --route maps the servername to upstream host:port
-                              i.e. --route incoming.com=upstream.local:8443
-    --route-upstream-tls)     Enable TLS for upstream routes
-                              i.e. --route-upstream-tls incoming.com will use upstream tls for incoming.com route
-    --route-upstream-insecure Do not verify the CA of the upstream server
-                              i.e. --route-upstream-insecure incoming.com
-    --route-upstream-ca)      Set the filepath to the upstream CA file to verify upstream server
-                              i.e. --route-upstream-ca incoming.com=/etc/tls/certs/ca.crt
-    --route-upstream-cert)    Set the filepath to the upstream cert file to connect with
-                              i.e. --route-upstream-ca incoming.com=/etc/tls/certs/cert.crt
-    --route-upstream-key)     Set the filepath to the upstream key file to connect with
-                              i.e. --route-upstream-ca incoming.com=/etc/tls/certs/cert.key
-    --route-upstream-pass)    The password to decrypt the upstream key with
-                              i.e. --route-upstream-pass incoming.com=theprivkeypass
-    --route-tls)              Enable TLS termination of the incoming connection
-    --route-require-client-cert) Require the client to provide TLS client cert authentication
-    --route-ca)               Set the CA to verify the incoming client against
-    --route-cert)             Set the TLS server certificate to provide clients for this route
-    --route-key)              The matching TLS server certificate key for this route
-    --route-pass)             The TLS server certificate key password to decrypt the key with
-    --dryrun                  Print the rendered config and exit
-    --log                     Set logs to output to specific path (i.e. /dev/stdout, /dev/stderr)
+    --http-forward-proxy)     If set, forward HTTP traffic transparently to its DNS resolved upstream address
+    --sni-forward-proxy)      If set, forward TLS traffic via its SNI (servername) to its DNS resolved upstream address
+    --sni-route)              Create a static TLS passthrough route based on the SNI (i.e. <servername>=upstream:6443)
+    --sni-route-domain)       Add an additional servername to accept traffic on this servername for this SNI route.
+    --tls-route)              Create a static TLS terminating route (i.e. <servername>=upstream:8443)
+    --tls-route-domain)       Add an additional domain name to accept traffic on this domain for this tls route.
+    --tls-route-config)       Use a TLS config for a particular route by its name (i.e. --tls-route-config <servername>=<name>)
+    --tls-upstream-config)    Use a TLS config for a particular route upstream by its name (i.e. --tls-upstream-config <route>=<name>)
+    --tls-config-cert)              Set the cert file for a TLS config (i.e. <name>=/etc/tls/pki/cert.crt)
+    --tls-config-key)               Set the key file for a TLS config (i.e. <name>=/etc/tls/pki/cert.key)
+    --tls-config-key-pass)          Set the password to decrypt a TLS key (i.e. <name>=password)
+    --tls-config-ca)                Set the CA file for a TLS config (i.e. <name>=/etc/tls/pki/ca.crt)
+    --tls-config-insecure)          Do not verify the other side of the TLS connection
+    --tls-config-upstream-insecure) Do not verify the upstream server
+    --tls-config-upstream-tls)      Use TLS for the upstream protocol (this only applies to upstream connections)
+    --tls-config-upstream-sni)      Use this SNI when connecting to upstream servers (this only applies to upstream connections)
+    --dryrun                        Print the rendered config and exit
+    --log                           Set logs to output to specific path (i.e. /dev/stdout, /dev/stderr)
 
   ENVOY_OPTIONS:
     Any additional arguments not matching an above option will be passed to the Envoy entrypoint.
@@ -201,9 +165,9 @@ _validate() {
   fi
 }
 
-# turn sni=host:port into sni yaml
 _routify() {
-  local route="$1"
+  local routetype="$1" # tls or sni
+  local route="$2"
   local servername=$(echo "${route}" | awk -F= '{print $1}')
   local id=$(echo "${servername}" | tr -d '.*')
   local upstream=$(echo "${route}" | awk -F= '{print $2}')
@@ -216,71 +180,112 @@ _routify() {
   echo "  upstream_addr: ${upstream_host}"
   echo "  upstream_port: ${upstream_port}"
 
-  for rt in "${ROUTES_SNI_PORTS[@]}"; do
+  if [[ "${routetype}" == "sni" ]]; then
+
+    # not exactly sure if this is needed or how it works as sni port is already in the upstream
+    for rt in "${TLS_ROUTE_CONFIGS[@]}"; do
+      if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+        echo "  sni_port: $(echo "${rt}" | awk -F= '{print $2}')"
+      fi
+    done
+
+    if [[ "${#SNI_ROUTE_DOMAINS[@]}" -gt 0 ]]; then
+      local domains=()
+      for rt in "${SNI_ROUTE_DOMAINS[@]}"; do
+        if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+          domains+=("$(echo "${rt}" | awk -F= '{print $2}')")
+        fi
+      done
+      if [[ "${#domains}" -gt 0 ]]; then
+        echo "  sni_domains:"
+        for dn in "${domains[@]}"; do
+          echo "  - ${dn}"
+        done
+      fi
+    fi
+
+  fi
+
+  if [[ "${routetype}" == "tls" ]]; then
+    for rt in "${TLS_ROUTE_CONFIGS[@]}"; do
+      if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+        _tls_configify "$(echo "${rt}" | awk -F= '{print $2}')" route
+      fi
+    done
+
+    for rt in "${TLS_UPSTREAM_CONFIGS[@]}"; do
+      if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+        _tls_configify "$(echo "${rt}" | awk -F= '{print $2}')" upstream
+      fi
+    done
+
+    if [[ "${#TLS_ROUTE_DOMAINS[@]}" -gt 0 ]]; then
+      local domains=()
+      for rt in "${TLS_ROUTE_DOMAINS[@]}"; do
+        if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+          domains+=("$(echo "${rt}" | awk -F= '{print $2}')")
+        fi
+      done
+      if [[ "${#domains}" -gt 0 ]]; then
+        echo "  tls_domains:"
+        for dn in "${domains[@]}"; do
+          echo "  - ${dn}"
+        done
+      fi
+    fi
+
+  fi
+}
+
+_tls_configify() {
+  local id="$1"
+  local prefix="$2"
+
+  for rt in "${TLS_CONFIG_CAS[@]}"; do
     if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
-      echo "  sni_port: $(echo "${rt}" | awk -F= '{print $2}')"
+      echo "  ${prefix}_ca: $(echo "${rt}" | awk -F= '{print $2}')"
     fi
   done
 
-  for rt in "${ROUTES_UPSTREAM_TLS[@]}"; do
+  for rt in "${TLS_CONFIG_CERTS[@]}"; do
     if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
-      echo "  upstream_tls: true"
-    fi
-  done
-  for rt in "${ROUTES_UPSTREAM_INSECURE[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
-      echo "  upstream_tls_insecure: true"
-    fi
-  done
-  for rt in "${ROUTES_UPSTREAM_CAS[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
-      echo "  upstream_ca: $(echo "${rt}" | awk -F= '{print $2}')"
-    fi
-  done
-  for rt in "${ROUTES_UPSTREAM_CERTS[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
-      echo "  upstream_cert: $(echo "${rt}" | awk -F= '{print $2}')"
-    fi
-  done
-  for rt in "${ROUTES_UPSTREAM_KEYS[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
-      echo "  upstream_key: $(echo "${rt}" | awk -F= '{print $2}')"
-    fi
-  done
-  for rt in "${ROUTES_UPSTREAM_PASSWORDS[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
-      echo "  upstream_key_pass: $(echo "${rt}" | awk -F= '{print $2}')"
+      echo "  ${prefix}_cert: $(echo "${rt}" | awk -F= '{print $2}')"
     fi
   done
 
-  for rt in "${ROUTES_DOWNSTREAM_TLS[@]}"; do
+  for rt in "${TLS_CONFIG_KEYS[@]}"; do
     if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
-      echo "  route_tls: true"
+      echo "  ${prefix}_key: $(echo "${rt}" | awk -F= '{print $2}')"
     fi
   done
-  for rt in "${ROUTES_DOWNSTREAM_MUTUAL[@]}"; do
+
+  for rt in "${TLS_CONFIG_KEY_PASSES[@]}"; do
     if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
-      echo "  route_mutual: true"
+      echo "  ${prefix}_key_pass: $(echo "${rt}" | awk -F= '{print $2}')"
     fi
   done
-  for rt in "${ROUTES_DOWNSTREAM_CAS[@]}"; do
+
+  for rt in "${TLS_CONFIG_INSECURES[@]}"; do
     if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
-      echo "  route_ca: $(echo "${rt}" | awk -F= '{print $2}')"
+      echo "  ${prefix}_insecure: true"
     fi
   done
-  for rt in "${ROUTES_DOWNSTREAM_CERTS[@]}"; do
+
+  for rt in "${TLS_CONFIG_UPSTREAM_INSECURES[@]}"; do
     if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
-      echo "  route_cert: $(echo "${rt}" | awk -F= '{print $2}')"
+      echo "  upstream_insecure: true" # this is an upstream only config
     fi
   done
-  for rt in "${ROUTES_DOWNSTREAM_KEYS[@]}"; do
+
+  for rt in "${TLS_CONFIG_UPSTREAM_TLS[@]}"; do
     if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
-      echo "  route_key: $(echo "${rt}" | awk -F= '{print $2}')"
+      echo "  upstream_tls: true" # this is an upstream only config so no prefix used
     fi
   done
-  for rt in "${ROUTES_DOWNSTREAM_PASSWORDS[@]}"; do
+
+  for rt in "${TLS_CONFIG_UPSTREAM_SNI[@]}"; do
     if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
-      echo "  route_key_pass: $(echo "${rt}" | awk -F= '{print $2}')"
+      echo "  upstream_sni: $(echo "${rt}" | awk -F= '{print $2}')" # upstream only setting
     fi
   done
 }
@@ -288,17 +293,26 @@ _routify() {
 # print all env vars as key: value yaml
 _datayaml() {
   for var in $(compgen -e); do
-    if [[ "${var}" != "ROUTES" ]] && [[ ! -z "${!var}" ]]; then
+    if [[ "${var}" != "SNI_ROUTES" ]] && [[ "${var}" != "TLS_ROUTES" ]] && [[ ! -z "${!var}" ]]; then
       echo "${var}: ${!var}"
     fi
   done
 
-  if [[ "${ENVOY_TEMPLATE}" == "${SNI_ROUTER_TEMPLATE}" ]] || \
-     [[ "${ENVOY_TEMPLATE}" == "${SNI_TEMPLATE}" ]] || \
-     [[ "${ENVOY_TEMPLATE}" == "${TLS_TEMPLATE}" ]] ; then
-    echo "ROUTES:"
-    for rt in "${ROUTES[@]}"; do
-      _routify "${rt}"
+  if [[ "${#SNI_ROUTES}" -gt 0 ]] || [[ -n "${SNI_FORWARD_PROXY}" ]]; then
+    echo "TLS_INSPECTOR: true"
+  fi
+
+  if [[ "${#SNI_ROUTES}" -gt 0 ]]; then
+    echo "SNI_ROUTES:"
+    for rt in "${SNI_ROUTES[@]}"; do
+      _routify sni "${rt}"
+    done
+  fi
+
+  if [[ "${#TLS_ROUTES}" -gt 0 ]]; then
+    echo "TLS_ROUTES:"
+    for rt in "${TLS_ROUTES[@]}"; do
+      _routify tls "${rt}"
     done
   fi
 }
@@ -339,6 +353,7 @@ _main() {
   _start ${@}
 }
 
+
 args=()
 while [[ $# -gt 0 ]]; do
   key="$1"
@@ -347,100 +362,8 @@ while [[ $# -gt 0 ]]; do
       _help
       exit 0
       ;;
-    --envoy-template)
-      ENVOY_TEMPLATE="$2"
-      shift
-      shift
-      ;;
-    --sni)
-      ENVOY_TEMPLATE="${SNI_TEMPLATE}"
-      shift
-      ;;
-    --tls)
-      ENVOY_TEMPLATE="${TLS_TEMPLATE}"
-      shift
-      ;;
-    --sni-router)
-      ENVOY_TEMPLATE="${SNI_ROUTER_TEMPLATE}"
-      shift
-      ;;
-    --route)
-      ROUTES+=("$2")
-      shift
-      shift
-      ;;
-    --sni-port)
-      ROUTES_SNI_PORTS+=("$2")
-      shift
-      shift
-      ;;
-    --route-tls)
-      ROUTES_DOWNSTREAM_TLS+=("$2")
-      shift
-      shift
-      ;;
-    --route-require-client-cert)
-      ROUTES_DOWNSTREAM_MUTUAL+=("$2")
-      shift
-      shift
-      ;;
-    --route-ca)
-      ROUTES_DOWNSTREAM_CAS+=("$2")
-      shift
-      shift
-      ;;
-    --route-cert)
-      ROUTES_DOWNSTREAM_CERTS+=("$2")
-      shift
-      shift
-      ;;
-    --route-key)
-      ROUTES_DOWNSTREAM_KEYS+=("$2")
-      shift
-      shift
-      ;;
-    --route-pass)
-      ROUTES_DOWNSTREAM_PASSWORDS+=("$2")
-      shift
-      shift
-      ;;
-    --route-upstream-tls)
-      ROUTES_UPSTREAM_TLS+=("$2")
-      shift
-      shift
-      ;;
-    --route-upstream-insecure)
-      ROUTES_UPSTREAM_INSECURE+=("$2")
-      shift
-      shift
-      ;;
-    --route-upstream-ca)
-      ROUTES_UPSTREAM_CAS+=("$2")
-      shift
-      shift
-      ;;
-    --route-upstream-cert)
-      ROUTES_UPSTREAM_CERTS+=("$2")
-      shift
-      shift
-      ;;
-    --route-upstream-key)
-      ROUTES_UPSTREAM_KEYS+=("$2")
-      shift
-      shift
-      ;;
-    --route-upstream-pass)
-      ROUTES_UPSTREAM_PASSWORDS+=("$2")
-      shift
-      shift
-      ;;
-    --envoy-config)
-      ENVOY_CONFIG="$2"
-      shift
-      shift
-      ;;
-    --data-file)
-      DATA_FILE="$2"
+    --connect-timeout)
+      CONNECT_TIMEOUT="$2"
       shift
       shift
       ;;
@@ -464,119 +387,91 @@ while [[ $# -gt 0 ]]; do
       shift
       shift
       ;;
-    --log)
-      LOGPATH="$2"
-      shift
-      shift
-      ;;
     --http-forward-proxy)
-      HTTP_FORWARD_PROXY="1"
+      HTTP_FORWARD_PROXY=1
       shift
       ;;
-    --upstream-http-addr)
-      UPSTREAM_HTTP_ADDRESS="$2"
-      shift
-      shift
-      ;;
-    --upstream-http-port)
-      UPSTREAM_HTTP_PORT="$2"
-      shift
+    --sni-forward-proxy)
+      SNI_FORWARD_PROXY=1
       shift
       ;;
-    --upstream-addr)
-      UPSTREAM_ADDRESS="$2"
+    --sni-route)
+      SNI_ROUTES+=("$2")
       shift
       shift
       ;;
-    --upstream-port)
-      UPSTREAM_PORT="$2"
+    --sni-route-domain)
+      SNI_ROUTE_DOMAINS+=("$2")
       shift
       shift
       ;;
-    --upstream-sni)
-      UPSTREAM_SNI="$2"
+    --tls-route)
+      TLS_ROUTES+=("$2")
       shift
       shift
       ;;
-    --upstream-tls)
-      UPSTREAM_TLS=1
-      shift
-      ;;
-    --path-prefix)
-      PATH_PREFIX="$2"
+    --tls-route-domain)
+      TLS_ROUTE_DOMAINS+=("$2")
       shift
       shift
       ;;
-    --prefix-rewrite)
-      PREFIX_REWRITE="$2"
+    --tls-route-config)
+      TLS_ROUTE_CONFIGS+=("$2")
       shift
       shift
       ;;
-    --metrics-addr)
-      METRICS_ADDRESS="$2"
+    --tls-upstream-config)
+      TLS_UPSTREAM_CONFIGS+=("$2")
       shift
       shift
       ;;
-    --metrics-port)
-      METRICS_PORT="$2"
+    --tls-config-ca)
+      TLS_CONFIG_CAS+=("$2")
       shift
       shift
       ;;
-    --connect-timeout)
-      CONNECT_TIMEOUT="$2"
+    --tls-config-cert)
+      TLS_CONFIG_CERTS+=("$2")
       shift
       shift
       ;;
-    --cert-file)
-      CERT_FILE="$2"
+    --tls-config-key)
+      TLS_CONFIG_KEYS+=("$2")
       shift
       shift
       ;;
-    --dryrun)
-      DRYRUN=1
-      shift
-      ;;
-    --key-file)
-      KEY_FILE="$2"
+    --tls-config-key-pass)
+      TLS_CONFIG_KEY_PASSES+=("$2")
       shift
       shift
       ;;
-    --ca-file)
-      CA_FILE="$2"
+    --tls-config-insecure)
+      TLS_CONFIG_INSECURES+=("$2")
       shift
       shift
       ;;
-    --require-client-cert)
-      REQUIRE_CLIENT_CERT=true
-      shift
-      ;;
-    --allow-san)
-      ALLOW_SAN="$2"
+    --tls-config-upstream-insecure)
+      TLS_CONFIG_UPSTREAM_INSECURES+=("$2")
       shift
       shift
       ;;
-    --allow-san-matcher)
-      ALLOW_SAN_MATCHER="$2"
+    --tls-config-upstream-tls)
+      TLS_CONFIG_UPSTREAM_TLS+=("$2")
       shift
       shift
       ;;
-    --cert-days)
-      CERT_DAYS="$2"
-      shift
-      shift
-      ;;
-    --cert-rsa-bits)
-      CERT_RSABITS="$2"
-      shift
-      shift
-      ;;
-    --cert-subject)
-      CERT_SUBJECT="$2"
+    --tls-config-upstream-sni)
+      TLS_CONFIG_UPSTREAM_SNI+=("$2")
       shift
       shift
       ;;
     --hostname)
       HOSTNAME="$2"
+      shift
+      shift
+      ;;
+    --log)
+      LOGPATH="$2"
       shift
       shift
       ;;

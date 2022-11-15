@@ -11,10 +11,24 @@ services:
       - "8443"
       - "--hostname"
       - "guard"
-      - "--upstream-addr"
-      - "demo"
-      - "--upstream-port"
-      - "3000"
+      - "--tls-route"
+      - "guard=demo:3000"
+      - "--tls-route-domain"
+      - "guard=guard:8443"
+#      - "--tls-route-domain"
+#      - "guard=proxy"
+      - "--tls-route-domain"
+      - "guard=proxy:8443"
+      - "--tls-route-domain"
+      - "guard=snip:8443"
+      - "--tls-route-config"
+      - "guard=config"
+      - "--tls-config-cert"
+      - "config=/var/run/envoy/certs/server.crt"
+      - "--tls-config-key"
+      - "config=/var/run/envoy/certs/server.key"
+      - "--tls-config-insecure"
+      - "config"
 #      - "--allow-san"
 #      - "admin.user"
       - "--log"
@@ -34,19 +48,47 @@ services:
       - "8080"
       - "--hostname"
       - "proxy"
-      - "--tls"
-      - "--route"
+      - "--tls-route"
       - "proxy=guard:8443"
-      - "--route-tls"
-      - "proxy"
-      - "--route-cert"
-      - "proxy=/var/run/envoy/certs/server.crt"
-      - "--route-key"
-      - "proxy=/var/run/envoy/certs/server.key"
-      - "--route-upstream-tls"
-      - "proxy"
-      - "--route-upstream-insecure"
-      - "proxy"
+      - "--tls-route-config"
+      - "proxy=test"
+      - "--tls-route-domain"
+      - "proxy=proxy:8443"
+      - "--tls-route-domain"
+      - "proxy=snip:8443"
+      - "--tls-config-cert"
+      - "test=/var/run/envoy/certs/server.crt"
+      - "--tls-config-key"
+      - "test=/var/run/envoy/certs/server.key"
+      - "--tls-config-insecure"
+      - "test"
+      - "--tls-config-upstream-tls"
+      - "test"
+      - "--tls-config-upstream-sni"
+      - "test=proxy"
+      - "--tls-config-upstream-insecure"
+      - "test"
+      - "--log"
+      - "/dev/stdout"
+      - "--log-level"
+      - "trace"
+    networks:
+      - frontend
+    depends_on:
+      - guard
+  snip:
+    image: taemon1337/senvoy:1.0.6
+    command:
+      - "--listen-port"
+      - "8443"
+      - "--listen-http-port"
+      - "8080"
+      - "--hostname"
+      - "snip"
+      - "--sni-route"
+      - "snip=proxy:8443"
+      - "--sni-route-domain"
+      - "snip=snip:8443"
       - "--log"
       - "/dev/stdout"
       - "--log-level"
@@ -57,17 +99,17 @@ services:
     networks:
       - frontend
     depends_on:
-      - guard
+      - proxy
   curler:
     image: curlimages/curl:latest
     command:
       - "/bin/sh"
       - "-c"
-      - "while true; do curl -kLsS -v https://proxy:8443/ ; sleep 30; done"
+      - "while true; do sleep 10; curl -kLsS -v https://snip:8443/ ; sleep 10; done"
     networks:
       - frontend
     depends_on:
-      - proxy
+      - snip
 networks:
   frontend:
   backend:

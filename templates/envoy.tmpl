@@ -1,110 +1,246 @@
 static_resources:
   listeners:
-{{#LISTEN_HTTP_ADDRESS}}
+
+{{#HTTP_FORWARD_PROXY}}
   - name: listener_http
     address:
       socket_address:
         address: {{ LISTEN_HTTP_ADDRESS }}
         port_value: {{ LISTEN_HTTP_PORT }}
+
     filter_chains:
-    - filters:
-      - name: envoy.filters.network.tcp_proxy
-        typed_config:
-          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
-          cluster: http_upstream_cluster
-          stat_prefix: http_proxy
-{{/LISTEN_HTTP_ADDRESS}}
+    # http forward proxy
+    - filter_chain_match:
+        destination_port: {{ LISTEN_HTTP_PORT }}
+      filters:
+        - name: envoy.filters.network.http_connection_manager
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+            stat_prefix: ingress_http
+            route_config:
+              name: local_route
+              virtual_hosts:
+              - name: local_service
+                domains: ["*"]
+                routes:
+                - match:
+                    prefix: "/force-host-rewrite"
+                  route:
+                    cluster: dynamic_forward_proxy_cluster_http
+                  typed_per_filter_config:
+                    envoy.filters.http.dynamic_forward_proxy:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.dynamic_forward_proxy.v3.PerRouteConfig
+                      host_rewrite_literal: www.example.org
+                - match:
+                    prefix: "/"
+                  route:
+                    cluster: dynamic_forward_proxy_cluster_http
+            http_filters:
+            - name: envoy.filters.http.dynamic_forward_proxy
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.http.dynamic_forward_proxy.v3.FilterConfig
+                dns_cache_config:
+                  name: dynamic_forward_proxy_cache_config
+                  dns_lookup_family: V4_ONLY
+            - name: envoy.filters.http.router
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+{{/HTTP_FORWARD_PROXY}}
+
+{{#LISTEN_ADDRESS}}
+
   - name: listener_0
     address:
       socket_address:
         address: {{ LISTEN_ADDRESS }}
         port_value: {{ LISTEN_PORT }}
+{{#TLS_INSPECTOR}}
+    listener_filters:
+    - name: envoy.filters.listener.tls_inspector
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
+{{/TLS_INSPECTOR}}
     filter_chains:
+
+{{#TLS_ROUTES}}
     - filters:
       - name: envoy.filters.network.http_connection_manager
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
-          stat_prefix: ingress_http
-          access_log:
-          - name: envoy.access_loggers.stdout
-            typed_config:
-              "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+          codec_type: AUTO
+          stat_prefix: http_{{id}}
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: {{id}}
+              domains:
+              - "{{servername}}"
+{{#tls_domains}}
+              - "{{.}}"
+{{/tls_domains}}
+              routes:
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: upstream_cluster_{{id}}
           http_filters:
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
-          upgrade_configs:
-          - upgrade_type: websocket
-          route_config:
-            name: local_route
-            virtual_hosts:
-            - name: local_service
-              domains: ["*"]
-              routes:
-              - match:
-                  prefix: {{ PATH_PREFIX }}
-                route:
-                  prefix_rewrite: {{ PREFIX_REWRITE }}
-                  cluster: upstream_cluster
       transport_socket:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
-          require_client_certificate: {{ REQUIRE_CLIENT_CERT }}
+{{#route_mutual}}
+          require_client_certificate: true
+{{/route_mutual}}
           common_tls_context:
+{{#route_cert}}
+            tls_certificates:
+              - certificate_chain:
+                  filename: {{route_cert}}
+                private_key:
+                  filename: {{route_key}}
+{{#route_key_pass}}
+                password:
+                  inline_string: {{route_key_pass}}
+{{/route_key_pass}}
+{{/route_cert}}
+{{#route_ca}}
             validation_context:
               trusted_ca:
-                filename: {{ CA_FILE }}
-{{#ALLOW_SAN}}
-              match_subject_alt_names:
-              - {{ ALLOW_SAN_MATCHER }}: {{ ALLOW_SAN }}
-{{/ALLOW_SAN}}
-            tls_certificates:
-            - certificate_chain:
-                filename: {{ CERT_FILE }}
-              private_key:
-                filename: {{ KEY_FILE }}
+                filename: {{route_ca}}
+{{/route_ca}}
+{{#route_insecure}}
+            validation_context:
+              trust_chain_verification: ACCEPT_UNTRUSTED
+{{/route_insecure}}
+{{/TLS_ROUTES}}
+
+{{#SNI_ROUTES}}
+# direct static SNI mapping routes (i.e. '<servername>=upstream:6443')
+    - filter_chain_match:
+        server_names:
+          - "{{servername}}"
+{{#sni_domains}}
+          - "{{.}}"
+{{/sni_domains}}
+      filters:
+        - name: envoy.filters.network.tcp_proxy
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+            cluster: upstream_cluster_{{id}}
+            stat_prefix: sni
+{{/SNI_ROUTES}}
+
+{{#SNI_FORWARD_PROXY}}
+# The sni forward proxy dynamically routes traffic based on the SNI's DNS resolved address
+# We put if after ROUTES to be the default fallthrough routing if no ROUTES match
+    - filter_chain_match:
+        transport_protocol: "tls"
+      filters:
+        - name: envoy.filters.network.sni_dynamic_forward_proxy
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.network.sni_dynamic_forward_proxy.v3.FilterConfig
+            port_value: 443
+            dns_cache_config:
+              name: dynamic_forward_proxy_cache_config
+              dns_lookup_family: V4_ONLY
+        - name: envoy.tcp_proxy
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+            stat_prefix: sni
+            cluster: dynamic_forward_proxy_cluster
+{{/SNI_FORWARD_PROXY}}
+{{/LISTEN_ADDRESS}}
+
   clusters:
-{{#LISTEN_HTTP_ADDRESS}}
-  - name: http_upstream_cluster
+
+{{#HTTP_FORWARD_PROXY}}
+  - name: dynamic_forward_proxy_cluster_http
+    connect_timeout: {{ CONNECT_TIMEOUT }}
+    lb_policy: CLUSTER_PROVIDED
+    cluster_type:
+      name: envoy.clusters.dynamic_forward_proxy
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.clusters.dynamic_forward_proxy.v3.ClusterConfig
+        dns_cache_config:
+          name: dynamic_forward_proxy_cache_config
+          dns_lookup_family: V4_ONLY
+{{/HTTP_FORWARD_PROXY}}
+
+
+{{#SNI_ROUTES}}
+  - name: upstream_cluster_{{id}}
     type: LOGICAL_DNS
     connect_timeout: {{ CONNECT_TIMEOUT }}
     dns_lookup_family: V4_ONLY
     load_assignment:
-      cluster_name: upstream_cluster
+      cluster_name: upstream_cluster_{{id}}
       endpoints:
       - lb_endpoints:
         - endpoint:
             address:
               socket_address:
-                address: {{ UPSTREAM_HTTP_ADDRESS }}
-                port_value: {{ UPSTREAM_HTTP_PORT }}
-{{/LISTEN_HTTP_ADDRESS}}
-  - name: upstream_cluster
+                address: {{upstream_addr}}
+                port_value: {{upstream_port}}
+{{/SNI_ROUTES}}
+
+{{#SNI_FORWARD_PROXY}}
+  - name: dynamic_forward_proxy_cluster
+    lb_policy: CLUSTER_PROVIDED
+    connect_timeout: {{ CONNECT_TIMEOUT }}
+    cluster_type:
+      name: envoy.clusters.dynamic_forward_proxy
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.clusters.dynamic_forward_proxy.v3.ClusterConfig
+        dns_cache_config:
+          name: dynamic_forward_proxy_cache_config
+          dns_lookup_family: V4_ONLY
+{{/SNI_FORWARD_PROXY}}
+
+{{#TLS_ROUTES}}
+  - name: upstream_cluster_{{id}}
     type: LOGICAL_DNS
     connect_timeout: {{ CONNECT_TIMEOUT }}
     dns_lookup_family: V4_ONLY
     load_assignment:
-      cluster_name: upstream_cluster
+      cluster_name: upstream_cluster_{{id}}
       endpoints:
       - lb_endpoints:
         - endpoint:
             address:
               socket_address:
-                address: {{ UPSTREAM_ADDRESS }}
-                port_value: {{ UPSTREAM_PORT }}
-{{#UPSTREAM_TLS}}
+                address: {{upstream_addr}}
+                port_value: {{upstream_port}}
+{{#upstream_tls}}
     transport_socket:
       name: envoy.transport_sockets.tls
       typed_config:
         "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-{{#UPSTREAM_SNI}}
-        sni: {{ UPSTREAM_SNI }}
-{{/UPSTREAM_SNI}}
-{{/UPSTREAM_TLS}}
-admin:
-  access_log_path: {{LOGPATH}}
-  address:
-    socket_address:
-      address: {{ METRICS_ADDRESS }}
-      port_value: {{ METRICS_PORT }}
+{{#upstream_sni}}
+        sni: {{upstream_sni}}
+{{/upstream_sni}}
+        common_tls_context:
+{{#upstream_cert}}
+          tls_certificates:
+            - certificate_chain:
+                filename: {{upstream_cert}}
+              private_key:
+                filename: {{upstream_key}}
+{{#upstream_key_pass}}
+              password:
+                inline_string: {{upstream_key_pass}}
+{{/upstream_key_pass}}
+{{/upstream_cert}}
+          validation_context:
+{{#upstream_ca}}
+            trusted_ca:
+              filename: {{upstream_ca}}
+{{/upstream_ca}}
+{{#upstream_insecure}}
+            trust_chain_verification: ACCEPT_UNTRUSTED
+{{/upstream_insecure}}
+{{/upstream_tls}}
+{{/TLS_ROUTES}}
+
