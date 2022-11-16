@@ -298,7 +298,7 @@ _datayaml() {
     fi
   done
 
-  if [[ "${#SNI_ROUTES}" -gt 0 ]] || [[ -n "${SNI_FORWARD_PROXY}" ]]; then
+  if [[ "${#SNI_ROUTES}" -gt 0 ]] || [[ "${#TLS_ROUTES}" -gt 0 ]] || [[ -n "${SNI_FORWARD_PROXY}" ]]; then
     echo "TLS_INSPECTOR: true"
   fi
 

@@ -1,6 +1,6 @@
 SHELL=/bin/bash
 IMAGE=taemon1337/senvoy
-VERSION=1.0.6
+VERSION=1.0.7
 DOM=certauth.cryptomix.com
 TESTURL=https://${DOM}/json
 CERTS=/var/run/envoy/certs

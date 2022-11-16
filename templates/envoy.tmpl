@@ -63,7 +63,13 @@ static_resources:
     filter_chains:
 
 {{#TLS_ROUTES}}
-    - filters:
+    - filter_chain_match:
+        server_names:
+          - "{{servername}}"
+{{#tls_domains}}
+          - "{{.}}"
+{{/tls_domains}}
+      filters:
       - name: envoy.filters.network.http_connection_manager
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
