@@ -5,7 +5,7 @@ services:
     networks:
       - frontend
   guard:
-    image: taemon1337/senvoy:1.0.6
+    image: taemon1337/senvoy:1.0.7
     command:
       - "--listen-port"
       - "8443"
@@ -15,8 +15,8 @@ services:
       - "guard=demo:3000"
       - "--tls-route-domain"
       - "guard=guard:8443"
-#      - "--tls-route-domain"
-#      - "guard=proxy"
+      - "--tls-route-domain"
+      - "guard=proxy"
       - "--tls-route-domain"
       - "guard=proxy:8443"
       - "--tls-route-domain"
@@ -40,7 +40,7 @@ services:
     depends_on:
       - demo
   proxy:
-    image: taemon1337/senvoy:1.0.6
+    image: taemon1337/senvoy:1.0.7
     command:
       - "--listen-port"
       - "8443"
@@ -51,6 +51,8 @@ services:
       - "--tls-route"
       - "proxy=guard:8443"
       - "--tls-route-config"
+      - "proxy=test"
+      - "--tls-upstream-config"
       - "proxy=test"
       - "--tls-route-domain"
       - "proxy=proxy:8443"
@@ -65,7 +67,7 @@ services:
       - "--tls-config-upstream-tls"
       - "test"
       - "--tls-config-upstream-sni"
-      - "test=proxy"
+      - "test=guard:8443"
       - "--tls-config-upstream-insecure"
       - "test"
       - "--log"
@@ -77,7 +79,7 @@ services:
     depends_on:
       - guard
   snip:
-    image: taemon1337/senvoy:1.0.6
+    image: taemon1337/senvoy:1.0.7
     command:
       - "--listen-port"
       - "8443"
@@ -85,10 +87,14 @@ services:
       - "8080"
       - "--hostname"
       - "snip"
-      - "--sni-route"
-      - "snip=proxy:8443"
-      - "--sni-route-domain"
-      - "snip=snip:8443"
+      - "--sni-forward-proxy"
+      - "--sni-forward-proxy-port"
+      - "8443"
+      - "--http-forward-proxy"
+#      - "--sni-route"
+#      - "snip=proxy:8443"
+#      - "--sni-route-domain"
+#      - "snip=snip:8443"
       - "--log"
       - "/dev/stdout"
       - "--log-level"
@@ -96,6 +102,7 @@ services:
     ports:
       - 80:8080
       - 443:8443
+      - 8082:8082
     networks:
       - frontend
     depends_on:
@@ -105,7 +112,7 @@ services:
     command:
       - "/bin/sh"
       - "-c"
-      - "while true; do sleep 10; curl -kLsS -v https://snip:8443/ ; sleep 10; done"
+      - "while true; do sleep 3600; done"
     networks:
       - frontend
     depends_on:

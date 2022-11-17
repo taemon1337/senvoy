@@ -28,6 +28,7 @@ LISTEN_HTTP_ADDRESS=${LISTEN_HTTP_ADDRESS:-"0.0.0.0"}
 LISTEN_HTTP_PORT=${LISTEN_HTTP_PORT:-"8080"}
 HTTP_FORWARD_PROXY=${HTTP_FORWARD_PROXY:-""}
 SNI_FORWARD_PROXY=${SNI_FORWARD_PROXY:-""}
+SNI_FORWARD_PROXY_PORT=${SNI_FORWARD_PROXY_PORT:-"443"}
 
 SNI_ROUTES=()
 SNI_ROUTE_DOMAINS=()
@@ -61,6 +62,7 @@ _help() {
     --listen-http-port)       The port to listen for/proxy HTTP traffic on
     --http-forward-proxy)     If set, forward HTTP traffic transparently to its DNS resolved upstream address
     --sni-forward-proxy)      If set, forward TLS traffic via its SNI (servername) to its DNS resolved upstream address
+    --sni-forward-proxy-port) The upstream port to forward dynamically resolved SNI traffic (default 443)
     --sni-route)              Create a static TLS passthrough route based on the SNI (i.e. <servername>=upstream:6443)
     --sni-route-domain)       Add an additional servername to accept traffic on this servername for this SNI route.
     --tls-route)              Create a static TLS terminating route (i.e. <servername>=upstream:8443)
@@ -393,6 +395,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --sni-forward-proxy)
       SNI_FORWARD_PROXY=1
+      shift
+      ;;
+    --sni-forward-proxy-port)
+      SNI_FORWARD_PROXY_PORT="$2"
+      shift
       shift
       ;;
     --sni-route)
