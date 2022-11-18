@@ -63,18 +63,12 @@ static_resources:
     filter_chains:
 
 {{#TLS_ROUTES}}
-    - filter_chain_match:
-        server_names:
-          - "{{servername}}"
-{{#tls_domains}}
-          - "{{.}}"
-{{/tls_domains}}
-      filters:
+    - filters:
       - name: envoy.filters.network.http_connection_manager
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
           codec_type: AUTO
-          stat_prefix: http_{{id}}
+          stat_prefix: tls_route_{{stat}}
           route_config:
             name: local_route
             virtual_hosts:
@@ -136,15 +130,13 @@ static_resources:
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
             cluster: upstream_cluster_{{id}}
-            stat_prefix: sni
+            stat_prefix: sni_route_{{stat}}
 {{/SNI_ROUTES}}
 
 {{#SNI_FORWARD_PROXY}}
 # The sni forward proxy dynamically routes traffic based on the SNI's DNS resolved address
 # We put if after ROUTES to be the default fallthrough routing if no ROUTES match
-    - filter_chain_match:
-        transport_protocol: "tls"
-      filters:
+    - filters:
         - name: envoy.filters.network.sni_dynamic_forward_proxy
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.filters.network.sni_dynamic_forward_proxy.v3.FilterConfig
@@ -155,7 +147,7 @@ static_resources:
         - name: envoy.tcp_proxy
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
-            stat_prefix: sni
+            stat_prefix: sni_forward_proxy_{{stat}}
             cluster: dynamic_forward_proxy_cluster
 {{/SNI_FORWARD_PROXY}}
 {{/LISTEN_ADDRESS}}
@@ -165,6 +157,8 @@ static_resources:
 {{#HTTP_FORWARD_PROXY}}
   - name: dynamic_forward_proxy_cluster_http
     connect_timeout: {{ CONNECT_TIMEOUT }}
+    dns_refresh_rate: 300s
+    health_checks: []
     lb_policy: CLUSTER_PROVIDED
     cluster_type:
       name: envoy.clusters.dynamic_forward_proxy
@@ -181,11 +175,26 @@ static_resources:
     type: LOGICAL_DNS
     connect_timeout: {{ CONNECT_TIMEOUT }}
     dns_lookup_family: V4_ONLY
+    dns_refresh_rate: 300s
+    lb_policy: ROUND_ROBIN
+    health_checks: []
+    track_cluster_stats:
+      timeout_budgets: true
+      request_response_sizes: true
     load_assignment:
       cluster_name: upstream_cluster_{{id}}
       endpoints:
       - lb_endpoints:
         - endpoint:
+{{#upstream_health_port}}
+            health_check_config:
+{{#upstream_health_addr}}
+              address: 
+                socket_address:
+                  address: {{upstream_health_addr}}
+{{/upstream_health_addr}}
+                  port_value: {{upstream_health_port}}
+{{/upstream_health_port}}
             address:
               socket_address:
                 address: {{upstream_addr}}
@@ -195,11 +204,15 @@ static_resources:
 {{#SNI_FORWARD_PROXY}}
   - name: dynamic_forward_proxy_cluster
     lb_policy: CLUSTER_PROVIDED
+    dns_refresh_rate: 300s
+    health_checks: []
     connect_timeout: {{ CONNECT_TIMEOUT }}
     cluster_type:
       name: envoy.clusters.dynamic_forward_proxy
       typed_config:
         "@type": type.googleapis.com/envoy.extensions.clusters.dynamic_forward_proxy.v3.ClusterConfig
+        allow_insecure_cluster_options: true
+        allow_coalesced_connections: true
         dns_cache_config:
           name: dynamic_forward_proxy_cache_config
           dns_lookup_family: V4_ONLY
@@ -210,11 +223,23 @@ static_resources:
     type: LOGICAL_DNS
     connect_timeout: {{ CONNECT_TIMEOUT }}
     dns_lookup_family: V4_ONLY
+    track_cluster_stats:
+      timeout_budgets: true
+      request_response_sizes: true
     load_assignment:
       cluster_name: upstream_cluster_{{id}}
       endpoints:
       - lb_endpoints:
         - endpoint:
+{{#upstream_health_port}}
+            health_check_config:
+{{#upstream_health_addr}}
+              address: 
+                socket_address:
+                  address: {{upstream_health_addr}}
+{{/upstream_health_addr}}
+                  port_value: {{upstream_health_port}}
+{{/upstream_health_port}}
             address:
               socket_address:
                 address: {{upstream_addr}}

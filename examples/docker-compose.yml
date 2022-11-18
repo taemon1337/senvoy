@@ -5,7 +5,7 @@ services:
     networks:
       - frontend
   guard:
-    image: taemon1337/senvoy:1.0.7
+    image: taemon1337/senvoy:1.0.8
     command:
       - "--listen-port"
       - "8443"
@@ -40,7 +40,7 @@ services:
     depends_on:
       - demo
   proxy:
-    image: taemon1337/senvoy:1.0.7
+    image: taemon1337/senvoy:1.0.8
     command:
       - "--listen-port"
       - "8443"
@@ -58,6 +58,8 @@ services:
       - "proxy=proxy:8443"
       - "--tls-route-domain"
       - "proxy=snip:8443"
+      - "--tls-route-domain"
+      - "proxy=snip"
       - "--tls-config-cert"
       - "test=/var/run/envoy/certs/server.crt"
       - "--tls-config-key"
@@ -70,6 +72,8 @@ services:
       - "test=guard:8443"
       - "--tls-config-upstream-insecure"
       - "test"
+      - "--tls-config-upstream-health-port"
+      - "test=8082"
       - "--log"
       - "/dev/stdout"
       - "--log-level"
@@ -79,7 +83,7 @@ services:
     depends_on:
       - guard
   snip:
-    image: taemon1337/senvoy:1.0.7
+    image: taemon1337/senvoy:1.0.8
     command:
       - "--listen-port"
       - "8443"
@@ -87,14 +91,20 @@ services:
       - "8080"
       - "--hostname"
       - "snip"
-      - "--sni-forward-proxy"
-      - "--sni-forward-proxy-port"
-      - "8443"
+#      - "--sni-forward-proxy"
+#      - "--sni-forward-proxy-port"
+#      - "8443"
       - "--http-forward-proxy"
-#      - "--sni-route"
-#      - "snip=proxy:8443"
-#      - "--sni-route-domain"
-#      - "snip=snip:8443"
+      - "--sni-route"
+      - "snip=proxy:8443"
+      - "--sni-route-domain"
+      - "snip=snip:8443"
+      - "--sni-route-domain"
+      - "snip=proxy"
+      - "--tls-upstream-config"
+      - "snip=test"
+      - "--tls-config-upstream-health-port"
+      - "test=8082"
       - "--log"
       - "/dev/stdout"
       - "--log-level"

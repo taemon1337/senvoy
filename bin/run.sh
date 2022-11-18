@@ -32,8 +32,10 @@ SNI_FORWARD_PROXY_PORT=${SNI_FORWARD_PROXY_PORT:-"443"}
 
 SNI_ROUTES=()
 SNI_ROUTE_DOMAINS=()
+SNI_ROUTE_STATS=()
 TLS_ROUTES=()
 TLS_ROUTE_DOMAINS=()
+TLS_ROUTE_STATS=()
 
 TLS_ROUTES_CONFIGS=()
 TLS_UPSTREAM_CONFIGS=()
@@ -45,6 +47,8 @@ TLS_CONFIG_INSECURES=()
 TLS_CONFIG_UPSTREAM_INSECURES=()
 TLS_CONFIG_UPSTREAM_TLS=()
 TLS_CONFIG_UPSTREAM_SNI=()
+TLS_CONFIG_UPSTREAM_HEALTH_PORTS=()
+TLS_CONFIG_UPSTREAM_HEALTH_ADDRS=()
 TLS_INSPECTOR=""
 
 LOGPATH=/dev/null
@@ -65,8 +69,10 @@ _help() {
     --sni-forward-proxy-port) The upstream port to forward dynamically resolved SNI traffic (default 443)
     --sni-route)              Create a static TLS passthrough route based on the SNI (i.e. <servername>=upstream:6443)
     --sni-route-domain)       Add an additional servername to accept traffic on this servername for this SNI route.
+    --sni-route-stat)         Set a custom metric stat label for this SNI route
     --tls-route)              Create a static TLS terminating route (i.e. <servername>=upstream:8443)
     --tls-route-domain)       Add an additional domain name to accept traffic on this domain for this tls route.
+    --tls-route-stat)         Set a custom metric stat label for this TLS route
     --tls-route-config)       Use a TLS config for a particular route by its name (i.e. --tls-route-config <servername>=<name>)
     --tls-upstream-config)    Use a TLS config for a particular route upstream by its name (i.e. --tls-upstream-config <route>=<name>)
     --tls-config-cert)              Set the cert file for a TLS config (i.e. <name>=/etc/tls/pki/cert.crt)
@@ -77,6 +83,8 @@ _help() {
     --tls-config-upstream-insecure) Do not verify the upstream server
     --tls-config-upstream-tls)      Use TLS for the upstream protocol (this only applies to upstream connections)
     --tls-config-upstream-sni)      Use this SNI when connecting to upstream servers (this only applies to upstream connections)
+    --tls-config-upstream-health-port) Set the upstream health check port (set to metrics port to be healthy)
+    --tls-config-upstream-health-addr) Set the upstream health check IP addr
     --dryrun                        Print the rendered config and exit
     --log                           Set logs to output to specific path (i.e. /dev/stdout, /dev/stderr)
 
@@ -175,6 +183,7 @@ _routify() {
   local upstream=$(echo "${route}" | awk -F= '{print $2}')
   local upstream_host=$(echo "${upstream}" | awk -F: '{print $1}')
   local upstream_port=$(echo "${upstream}" | awk -F: '{print $2}')
+  local foundstat=""
   if [[ "${upstream_port}" == "" ]]; then upstream_port="443"; fi
   if [[ "${id}" == "" ]]; then id="wildcard"; fi
   echo "- id: ${id}"
@@ -191,6 +200,19 @@ _routify() {
       fi
     done
 
+    for rt in "${SNI_ROUTE_STATS[@]}"; do
+      if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+        echo "  stat: $(echo "${rt}" | awk -F= '{print $2}')"
+        foundstat="1"
+      fi
+    done
+
+    for rt in "${TLS_UPSTREAM_CONFIGS[@]}"; do
+      if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+        _tls_configify "$(echo "${rt}" | awk -F= '{print $2}')" upstream
+      fi
+    done
+
     if [[ "${#SNI_ROUTE_DOMAINS[@]}" -gt 0 ]]; then
       local domains=()
       for rt in "${SNI_ROUTE_DOMAINS[@]}"; do
@@ -201,7 +223,7 @@ _routify() {
       if [[ "${#domains}" -gt 0 ]]; then
         echo "  sni_domains:"
         for dn in "${domains[@]}"; do
-          echo "  - ${dn}"
+          echo "  - \"${dn}\""
         done
       fi
     fi
@@ -221,6 +243,13 @@ _routify() {
       fi
     done
 
+    for rt in "${TLS_ROUTE_STATS[@]}"; do
+      if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+        echo "  stat: $(echo "${rt}" | awk -F= '{print $2}')"
+        foundstat="1"
+      fi
+    done
+
     if [[ "${#TLS_ROUTE_DOMAINS[@]}" -gt 0 ]]; then
       local domains=()
       for rt in "${TLS_ROUTE_DOMAINS[@]}"; do
@@ -231,11 +260,14 @@ _routify() {
       if [[ "${#domains}" -gt 0 ]]; then
         echo "  tls_domains:"
         for dn in "${domains[@]}"; do
-          echo "  - ${dn}"
+          echo "  - \"${dn}\""
         done
       fi
     fi
+  fi
 
+  if [[ -z "${foundstat}" ]]; then
+    echo "  stat: ${id}" # default stat to id
   fi
 }
 
@@ -290,6 +322,19 @@ _tls_configify() {
       echo "  upstream_sni: $(echo "${rt}" | awk -F= '{print $2}')" # upstream only setting
     fi
   done
+
+  for rt in "${TLS_CONFIG_UPSTREAM_HEALTH_PORTS[@]}"; do
+    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+      echo "  upstream_health_port: $(echo "${rt}" | awk -F= '{print $2}')" # upstream only setting
+    fi
+  done
+
+  for rt in "${TLS_CONFIG_UPSTREAM_HEALTH_ADDRS[@]}"; do
+    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+      echo "  upstream_health_addr: $(echo "${rt}" | awk -F= '{print $2}')" # upstream only setting
+    fi
+  done
+
 }
 
 # print all env vars as key: value yaml
@@ -300,7 +345,7 @@ _datayaml() {
     fi
   done
 
-  if [[ "${#SNI_ROUTES}" -gt 0 ]] || [[ "${#TLS_ROUTES}" -gt 0 ]] || [[ -n "${SNI_FORWARD_PROXY}" ]]; then
+  if [[ "${#SNI_ROUTES}" -gt 0 ]] || [[ -n "${SNI_FORWARD_PROXY}" ]]; then
     echo "TLS_INSPECTOR: true"
   fi
 
@@ -412,6 +457,11 @@ while [[ $# -gt 0 ]]; do
       shift
       shift
       ;;
+    --sni-route-stat)
+      SNI_ROUTE_STATS+=("$2")
+      shift
+      shift
+      ;;
     --tls-route)
       TLS_ROUTES+=("$2")
       shift
@@ -419,6 +469,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --tls-route-domain)
       TLS_ROUTE_DOMAINS+=("$2")
+      shift
+      shift
+      ;;
+    --tls-route-stat)
+      TLS_ROUTE_STATS+=("$2")
       shift
       shift
       ;;
@@ -469,6 +524,16 @@ while [[ $# -gt 0 ]]; do
       ;;
     --tls-config-upstream-sni)
       TLS_CONFIG_UPSTREAM_SNI+=("$2")
+      shift
+      shift
+      ;;
+    --tls-config-upstream-health-port)
+      TLS_CONFIG_UPSTREAM_HEALTH_PORTS+=("$2")
+      shift
+      shift
+      ;;
+    --tls-config-upstream-health-addr)
+      TLS_CONFIG_UPSTREAM_HEALTH_ADDRS+=("$2")
       shift
       shift
       ;;

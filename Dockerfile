@@ -1,4 +1,4 @@
-FROM envoyproxy/envoy:v1.23-latest
+FROM envoyproxy/envoy:v1.24-latest
 
 USER root
 

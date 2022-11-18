@@ -1,0 +1,128 @@
+version: "3"
+services:
+  demo:
+    image: quangnhut123/demo-api:latest
+    networks:
+      - frontend
+  https2http:
+    image: taemon1337/senvoy:1.0.8
+    command:
+      - "--listen-port"
+      - "443"
+      - "--hostname"
+      - "https2http"
+      - "--tls-route"
+      - "https2http=demo:3000"
+      - "--tls-route-domain"
+      - "https2http=https2https"
+      - "--tls-route-domain"
+      - "https2http=sni2https"
+      - "--tls-route-domain"
+      - "https2http=sni2sni"
+      - "--tls-route-config"
+      - "https2http=config"
+      - "--tls-config-cert"
+      - "config=/var/run/envoy/certs/server.crt"
+      - "--tls-config-key"
+      - "config=/var/run/envoy/certs/server.key"
+      - "--tls-config-insecure"
+      - "config"
+      - "--log"
+      - "/dev/stdout"
+      - "--log-level"
+      - "debug"
+    networks:
+      - frontend
+  https2https:
+    image: taemon1337/senvoy:1.0.8
+    command:
+      - "--listen-port"
+      - "443"
+      - "--hostname"
+      - "https2https"
+      - "--tls-route"
+      - "https2https=https2http"
+      - "--tls-route-domain"
+      - "https2https=sni2https"
+      - "--tls-route-domain"
+      - "https2https=sni2sni"
+      - "--tls-route-config"
+      - "https2https=config"
+      - "--tls-upstream-config"
+      - "https2https=config"
+      - "--tls-config-cert"
+      - "config=/var/run/envoy/certs/server.crt"
+      - "--tls-config-key"
+      - "config=/var/run/envoy/certs/server.key"
+      - "--tls-config-insecure"
+      - "config"
+      - "--tls-config-upstream-tls"
+      - "config"
+      - "--log"
+      - "/dev/stdout"
+      - "--log-level"
+      - "debug"
+    networks:
+      - frontend
+  sni2https:
+    image: taemon1337/senvoy:1.0.8
+    command:
+      - "--listen-port"
+      - "443"
+      - "--hostname"
+      - "sni2https"
+      - "--sni-route"
+      - "sni2https=https2https"
+      - "--sni-route-domain"
+      - "sni2https=sni2sni"
+      - "--log"
+      - "/dev/stdout"
+      - "--log-level"
+      - "debug"
+    networks:
+      - frontend
+  sni2sni:
+    image: taemon1337/senvoy:1.0.8
+    command:
+      - "--listen-port"
+      - "443"
+      - "--hostname"
+      - "sni2sni"
+      - "--sni-route"
+      - "sni2sni=sni2https"
+      - "--log"
+      - "/dev/stdout"
+      - "--log-level"
+      - "debug"
+    networks:
+      - frontend
+  snif2sni:
+    image: taemon1337/senvoy:1.0.8
+    command:
+      - "--listen-port"
+      - "443"
+      - "--hostname"
+      - "snif2sni"
+      - "--sni-forward-proxy"
+      - "--log"
+      - "/dev/stdout"
+      - "--log-level"
+      - "debug"
+    networks:
+      - frontend
+  curler:
+    image: curlimages/curl:latest
+    command:
+      - "/bin/sh"
+      - "-c"
+      - |
+        while true; do
+          sleep 10
+          curl -k --resolve "sni2sni:443:$(nslookup snif2sni | grep Address | tail -n 1 | awk '{print $2}')" https://sni2sni/
+          sleep 5
+        done
+    networks:
+      - frontend
+networks:
+  frontend:
+

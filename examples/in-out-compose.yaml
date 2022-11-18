@@ -1,0 +1,69 @@
+version: "3"
+services:
+  in:
+    image: taemon1337/senvoy:1.0.8
+    command:
+      - "--listen-port"
+      - "443"
+      - "--listen-http-port"
+      - "80"
+      - "--hostname"
+      - "in"
+      - "--sni-forward-proxy"
+      - "--http-forward-proxy"
+      - "--sni-route"
+      - "snip=proxy:8443"
+      - "--sni-route-domain"
+      - "snip=snip:8443"
+      - "--log"
+      - "/dev/stdout"
+      - "--log-level"
+      - "debug"
+    extra_hosts:
+      - "google.com:10.5.0.3"
+    networks:
+      innet:
+        ipv4_address: 10.5.0.2
+  out:
+    image: taemon1337/senvoy:1.0.8
+    command:
+      - "--listen-port"
+      - "443"
+      - "--listen-http-port"
+      - "80"
+      - "--hostname"
+      - "out"
+      - "--sni-forward-proxy"
+      - "--http-forward-proxy"
+      - "--sni-route"
+      - "snip=proxy:8443"
+      - "--sni-route-domain"
+      - "snip=snip:8443"
+      - "--log"
+      - "/dev/stdout"
+      - "--log-level"
+      - "trace"
+    networks:
+      innet:
+        ipv4_address: 10.5.0.3
+  curler:
+    image: curlimages/curl:latest
+    command:
+      - "/bin/sh"
+      - "-c"
+      - "while true; do sleep 10; curl -ksSLvv https://google.com/ ; done"
+    extra_hosts:
+      - "google.com:10.5.0.2"
+    networks:
+      innet:
+        ipv4_address: 10.5.0.10
+    depends_on:
+      - in
+      - out
+networks:
+  innet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+          gateway: 10.5.0.1
