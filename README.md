@@ -10,7 +10,7 @@ This project gives you the best of both worlds, up and running fast with hardene
 
 ## Examples
 
-See the [examples][./examples] folder for some different docker-compose examples of how to use senvoy.
+See the [examples](./examples) folder for some different docker-compose examples of how to use senvoy.
 
 ## Modes
 
@@ -29,6 +29,14 @@ The `--sni-route <sni>=<host:port>` mode will also not terminate TLS connections
 ### TLS Route
 
 The `--tls-route <domain>=<host:port>` will terminate TLS connections and forward traffic to the specified upstream.  This mode includes many additional options for TLS (like `--tls-config-cert` and `--tls-config-upstream-tls`).
+
+If you need self-signed certificates, there are automatically generated ones available for the given `--hostname` at the following locations:
+
+```
+CERT_FILE: /var/run/envoy/certs/server.crt
+KEY_FILE: /var/run/envoy/certs/server.key
+CA_FILE: /var/run/envoy/certs/server.crt (since self-signed)
+```
 
 ### CLI Options
 
