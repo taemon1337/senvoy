@@ -8,83 +8,56 @@ The Envoy Proxy is a very robust, well-proven piece of proxy technology and it s
 
 This project gives you the best of both worlds, up and running fast with hardened, production ready proxy.
 
-## Usage
+## Examples
+
+See the [examples][./examples] folder for some different docker-compose examples of how to use senvoy.
+
+## Modes
+
+### SNI Forward Proxy
+
+The `--sni-forward-proxy` mode will not terminate TLS connections, but prereads the Servername (SNI) during the TLS handshake and routes traffic based on the DNS resolution of that SNI.
 
 ```bash
-  docker pull taemon1337/senvoy:latest
-  docker run --rm -it -p 8443:8443 taemon1337/senvoy:latest
+  docker run --rm -it -p 8443:8443 taemon1337/senvoy:latest --sni-forward-proxy
 ```
 
-The following will set the listener port via environment variable and cli arg
-```bash
-  docker run --rm -it -p 8443:8443 -e LISTEN_PORT=8443 taemon1337/senvoy:latest
-  docker run --rm -it -p 8443:8443 taemon1337/senvoy:latest --listen-port 8443
+### SNI Route
+
+The `--sni-route <sni>=<host:port>` mode will also not terminate TLS connections but will route to the provided backend directly.
+
+### TLS Route
+
+The `--tls-route <domain>=<host:port>` will terminate TLS connections and forward traffic to the specified upstream.  This mode includes many additional options for TLS (like `--tls-config-cert` and `--tls-config-upstream-tls`).
+
+### CLI Options
+
+The TLS connection can be extensively configured by settings up `--tls-config-<option> <config-name>=<config-value>` and then assigning a route to use the config.  See below for the list of possible options for each route type.
+
+#### TLS Route Options
+```
+--tls-route-config              <route-name>=<config-name>            Assign the tls config to the route
+--tls-upstream-config           <route-name>=<config-name>            Assign the tls config to the upstream of the given route
+--tls-route-domain              <route-name>=<domain>                 Add domain name for given route
 ```
 
-A more live/production usage may look something like this:
+#### SNI Route Options
 ```
-  export CERT_DIR=/etc/tls/certs
-  export KEY_DIR=/etc/tls/private
-  export PROD_CERT=prod.crt
-  export PROD_KEY=prod.key
-  docker run --rm -it -p 8443:8443 \
-    -v ${CERT_DIR}:${CERT_DIR}:ro \
-    -v ${KEY_DIR}:${KEY_DIR}:ro \
-    taemon1337/senvoy:latest \
-    --cert-file ${CERT_DIR}/${PROD_CERT} \
-    --key-file ${KEY_DIR}${PROD_KEY} \
-    --listen-port 8443 \
-    --upstream-port 80
+--sni-route-domain              <route-name>=<domain>                 Add domain name (via SNI) for given route
 ```
 
-## SNI Mode (--sni|--envoy-template /usr/local/src/sni.tmpl)
-
-With SNI mode, each incoming TLS request will be preread to load the server_name of the TLS Client Hello packet and routed based on the DNS lookup of that servername.
-
-## SNI Router Mode (--sni-router|--envoy-template /usr/local/src/sni-router.tmpl)
-
-With SNI Router mode, each incoming TLS request will be preread to load the server_name of the TLS Client Hello packet and routed based on that servername.
+#### TLS config
 
 ```
-  docker run --rm -it -p 8443:8443 taemon1337/senvoy:latest --sni-router --route github.com=github.local --route *.local=default.local:8443
+--tls-config-cert               <config-name>=<path/to/cert/file>     Use the given cert file for TLS authentication (upstream or downstream as assigned)
+--tls-config-key                <config-name>=<path/to/key/file>      Use the given key file along with a given cert
+--tls-config-ca                 <config-name>=<path/to/ca/file>       Authenticate other side of TLS connection with given CA file
+--tls-config-insecure           <config-name>                         Do not verify TLS connection against a CA for incoming connections
+--tls-config-upstream-insecure  <config-name>                         Do not verify upstream server against a CA
+--tls-config-upstream-tls       <config-name>                         Use TLS for upstream connections (HTTP if not set)
+--tls-config-upstream-sni       <config-name>=<sni>                   Use a custom SNI in upstream TLS connections
 ```
 
-
-The following environment variables with their defaults which can be overridden are shown below:
-
-|Environment Variable| Command Line option|Default Value|
-|--------------------|--------------------|-------------|
-|ENVOY_HOME||/var/run/envoy|Location of envoy generated/copied files|
-|ENVOY_TEMPLATE|--envoy-template|/usr/local/src/envoy.tmpl|Location of envoy template file|
-|ENVOY_CONFIG|--envoy-config|/var/run/envoy/envoy.yaml|Location to store envoy config file|
-|ENVOY_CERTS|--envoy-certs|/var/run/envoy/certs|Location to store envoy generated/copied certs|
-|LISTEN_ADDRESS|--listen-addr|0.0.0.0|Address to list on|
-|LISTEN_PORT|--listen-port|8443|Port to listen on|
-|LISTEN_HTTP_ADDRESS|--listen-http-addr|0.0.0.0|Address to listen for/proxy HTTP traffic on|
-|LISTEN_HTTP_PORT|--listen-http-port|8080|Port to listen for/proxy HTTP traffic on|
-|UPSTREAM_HTTP_ADDRESS|--upstream-http-addr|127.0.0.1|Address to proxy HTTP traffic to|
-|UPSTREAM_HTTP_PORT|--upstream-http-port|80|Port to proxy HTTP traffic to|
-|UPSTREAM_ADDRESS|--upstream-addr|127.0.0.1|Address to proxy traffic to|
-|UPSTREAM_PORT|--upstream-port|8080|Port of upstream to proxy traffic to|
-|UPSTREAM_SNI|--upstream-sni|""|Set the SNI in the upstream tls connection|
-|UPSTREAM_TLS|--upstream-tls|false|Set to connect to upstream using tls|
-|PATH_PREFIX|--path-prefix|/|The incoming request path to match prefix on|
-|PREFIX_REWRITE|--prefix-rewrite|/|The upstream request path to rewrite the prefix to|
-|METRICS_ADDRESS|--metrics-addr|0.0.0.0|Address to host admin metrics on|
-|METRICS_PORT|--metrics-port|8082|Port of metrics admin|
-|CONNECT_TIMEOUT|--connect-timeout|0.25s|Length of time to wait for upstream|
-|HOSTNAME|--hostname|localhost|The hostname to put in generated tls cert|
-|CERT_DAYS|--cert-days|365|The number of days to make generated cert valid for|
-|CERT_RSABITS|--cert-rsa-bits|4096|The number of bits of generated RSA key in TLS cert|
-|CERT_FILE|--cert-file|/home/envoy/server.crt|Location of tls cert file|
-|KEY_FILE|--key-file|/home/envoy/server.key|Location of tls key file|
-|REQUIRE_CLIENT_CERT|--require-client-cert|false|If true, require client tls cert (mutual auth)|
-|ALLOW_SAN|--allow-san|""|If set, only allow matching SANs|
-|ALLOW_SAN_MATCHER|--allow-san-matcher|exact|The envoy string matcher to use, can be exact, contains, prefix, suffix|
-||--sni||alias for '--envoy-template /usr/local/src/sni.tmpl|
-||--sni-router||alias for '--envoy-template /usr/local/src/sni-router.tmpl' uses SNI routing template|
-|ROUTES|--route <sni=upstream>|()|Use --route <servername>=<upstream:port> to create SNI routes (in --sni or --sni-router mode)|
-|DRYRUN|--dryrun||Use to test config and exit|
 
 ## Docker entrypoint wrapper
 
