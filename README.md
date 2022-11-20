@@ -1,6 +1,6 @@
-# Simple Envoy TLS Sidecar
+# Simple Envoy Proxy
 
-A simple wrapper container around Envoy that eases configuration and delegates to Envoy for a simple TLS sidecar proxy.
+A simple wrapper container around Envoy that eases configuration for traffic routing using the robust Envoy proxy.
 
 ## Rationale
 
