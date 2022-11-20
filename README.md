@@ -18,9 +18,15 @@ See the [examples](./examples) folder for some different docker-compose examples
 
 The `--sni-forward-proxy` mode will not terminate TLS connections, but prereads the Servername (SNI) during the TLS handshake and routes traffic based on the DNS resolution of that SNI.
 
+The SNI and HTTP forward proxy modes are very useful for inbound and outbound traffic gateways into environments like Kubernetes.  A senvoy proxy can be configured to receive all traffic via DNS "hijacking" of valid/public domains and the senvoy proxy can route traffic to their valid public domains transparently.
+
 ```bash
   docker run --rm -it -p 8443:8443 taemon1337/senvoy:latest --sni-forward-proxy
 ```
+
+### HTTP Forward Proxy
+
+The `--http-forward-proxy` mode will work just like the `--sni-forward-proxy` but for HTTP traffic.  It will receive HTTP traffic and transparently send it upstream to the DNS hostname resolved.
 
 ### SNI Route
 
