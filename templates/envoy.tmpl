@@ -1,13 +1,11 @@
 static_resources:
   listeners:
-
 {{#HTTP_FORWARD_PROXY}}
   - name: listener_http
     address:
       socket_address:
         address: {{ LISTEN_HTTP_ADDRESS }}
         port_value: {{ LISTEN_HTTP_PORT }}
-
     filter_chains:
     # http forward proxy
     - filter_chain_match:
@@ -46,9 +44,7 @@ static_resources:
               typed_config:
                 "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 {{/HTTP_FORWARD_PROXY}}
-
 {{#LISTEN_ADDRESS}}
-
   - name: listener_0
     address:
       socket_address:
@@ -61,7 +57,6 @@ static_resources:
         "@type": type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
 {{/TLS_INSPECTOR}}
     filter_chains:
-
 {{#TLS_ROUTES}}
     - filters:
       - name: envoy.filters.network.http_connection_manager
@@ -69,6 +64,8 @@ static_resources:
           "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
           codec_type: AUTO
           stat_prefix: tls_route_{{stat}}
+          strip_any_host_port: true
+          stream_error_on_invalid_http_message: true
           route_config:
             name: local_route
             virtual_hosts:
@@ -116,7 +113,6 @@ static_resources:
               trust_chain_verification: ACCEPT_UNTRUSTED
 {{/route_insecure}}
 {{/TLS_ROUTES}}
-
 {{#SNI_ROUTES}}
 # direct static SNI mapping routes (i.e. '<servername>=upstream:6443')
     - filter_chain_match:
@@ -132,7 +128,6 @@ static_resources:
             cluster: upstream_cluster_{{id}}
             stat_prefix: sni_route_{{stat}}
 {{/SNI_ROUTES}}
-
 {{#SNI_FORWARD_PROXY}}
 # The sni forward proxy dynamically routes traffic based on the SNI's DNS resolved address
 # We put if after ROUTES to be the default fallthrough routing if no ROUTES match
@@ -153,7 +148,6 @@ static_resources:
 {{/LISTEN_ADDRESS}}
 
   clusters:
-
 {{#HTTP_FORWARD_PROXY}}
   - name: dynamic_forward_proxy_cluster_http
     connect_timeout: {{ CONNECT_TIMEOUT }}
@@ -168,8 +162,6 @@ static_resources:
           name: dynamic_forward_proxy_cache_config
           dns_lookup_family: V4_ONLY
 {{/HTTP_FORWARD_PROXY}}
-
-
 {{#SNI_ROUTES}}
   - name: upstream_cluster_{{id}}
     type: LOGICAL_DNS
@@ -200,7 +192,6 @@ static_resources:
                 address: {{upstream_addr}}
                 port_value: {{upstream_port}}
 {{/SNI_ROUTES}}
-
 {{#SNI_FORWARD_PROXY}}
   - name: dynamic_forward_proxy_cluster
     lb_policy: CLUSTER_PROVIDED
@@ -217,7 +208,6 @@ static_resources:
           name: dynamic_forward_proxy_cache_config
           dns_lookup_family: V4_ONLY
 {{/SNI_FORWARD_PROXY}}
-
 {{#TLS_ROUTES}}
   - name: upstream_cluster_{{id}}
     type: LOGICAL_DNS

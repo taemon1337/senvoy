@@ -175,11 +175,16 @@ _validate() {
   fi
 }
 
+_id() {
+  local route="$1"
+  echo "${route}" | awk -F= '{print $1}' | tr -d '\-.*'
+}
+
 _routify() {
   local routetype="$1" # tls or sni
   local route="$2"
   local servername=$(echo "${route}" | awk -F= '{print $1}')
-  local id=$(echo "${servername}" | tr -d '.*')
+  local id=$(_id "${route}")
   local upstream=$(echo "${route}" | awk -F= '{print $2}')
   local upstream_host=$(echo "${upstream}" | awk -F: '{print $1}')
   local upstream_port=$(echo "${upstream}" | awk -F: '{print $2}')
@@ -195,20 +200,20 @@ _routify() {
 
     # not exactly sure if this is needed or how it works as sni port is already in the upstream
     for rt in "${TLS_ROUTE_CONFIGS[@]}"; do
-      if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+      if [[ "$(_id "${rt}")" == "${id}" ]]; then
         echo "  sni_port: $(echo "${rt}" | awk -F= '{print $2}')"
       fi
     done
 
     for rt in "${SNI_ROUTE_STATS[@]}"; do
-      if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+      if [[ "$(_id "${rt}")" == "${id}" ]]; then
         echo "  stat: $(echo "${rt}" | awk -F= '{print $2}')"
         foundstat="1"
       fi
     done
 
     for rt in "${TLS_UPSTREAM_CONFIGS[@]}"; do
-      if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+      if [[ "$(_id "${rt}")" == "${id}" ]]; then
         _tls_configify "$(echo "${rt}" | awk -F= '{print $2}')" upstream
       fi
     done
@@ -216,7 +221,7 @@ _routify() {
     if [[ "${#SNI_ROUTE_DOMAINS[@]}" -gt 0 ]]; then
       local domains=()
       for rt in "${SNI_ROUTE_DOMAINS[@]}"; do
-        if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+        if [[ "$(_id "${rt}")" == "${id}" ]]; then
           domains+=("$(echo "${rt}" | awk -F= '{print $2}')")
         fi
       done
@@ -232,19 +237,19 @@ _routify() {
 
   if [[ "${routetype}" == "tls" ]]; then
     for rt in "${TLS_ROUTE_CONFIGS[@]}"; do
-      if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+      if [[ "$(_id "${rt}")" == "${id}" ]]; then
         _tls_configify "$(echo "${rt}" | awk -F= '{print $2}')" route
       fi
     done
 
     for rt in "${TLS_UPSTREAM_CONFIGS[@]}"; do
-      if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+      if [[ "$(_id "${rt}")" == "${id}" ]]; then
         _tls_configify "$(echo "${rt}" | awk -F= '{print $2}')" upstream
       fi
     done
 
     for rt in "${TLS_ROUTE_STATS[@]}"; do
-      if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+      if [[ "$(_id "${rt}")" == "${id}" ]]; then
         echo "  stat: $(echo "${rt}" | awk -F= '{print $2}')"
         foundstat="1"
       fi
@@ -253,7 +258,7 @@ _routify() {
     if [[ "${#TLS_ROUTE_DOMAINS[@]}" -gt 0 ]]; then
       local domains=()
       for rt in "${TLS_ROUTE_DOMAINS[@]}"; do
-        if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+        if [[ "$(_id "${rt}")" == "${id}" ]]; then
           domains+=("$(echo "${rt}" | awk -F= '{print $2}')")
         fi
       done
@@ -276,61 +281,61 @@ _tls_configify() {
   local prefix="$2"
 
   for rt in "${TLS_CONFIG_CAS[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+    if [[ "$(_id "${rt}")" == "${id}" ]]; then
       echo "  ${prefix}_ca: $(echo "${rt}" | awk -F= '{print $2}')"
     fi
   done
 
   for rt in "${TLS_CONFIG_CERTS[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+    if [[ "$(_id "${rt}")" == "${id}" ]]; then
       echo "  ${prefix}_cert: $(echo "${rt}" | awk -F= '{print $2}')"
     fi
   done
 
   for rt in "${TLS_CONFIG_KEYS[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+    if [[ "$(_id "${rt}")" == "${id}" ]]; then
       echo "  ${prefix}_key: $(echo "${rt}" | awk -F= '{print $2}')"
     fi
   done
 
   for rt in "${TLS_CONFIG_KEY_PASSES[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+    if [[ "$(_id "${rt}")" == "${id}" ]]; then
       echo "  ${prefix}_key_pass: $(echo "${rt}" | awk -F= '{print $2}')"
     fi
   done
 
   for rt in "${TLS_CONFIG_INSECURES[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+    if [[ "$(_id "${rt}")" == "${id}" ]]; then
       echo "  ${prefix}_insecure: true"
     fi
   done
 
   for rt in "${TLS_CONFIG_UPSTREAM_INSECURES[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+    if [[ "$(_id "${rt}")" == "${id}" ]]; then
       echo "  upstream_insecure: true" # this is an upstream only config
     fi
   done
 
   for rt in "${TLS_CONFIG_UPSTREAM_TLS[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+    if [[ "$(_id "${rt}")" == "${id}" ]]; then
       echo "  upstream_tls: true" # this is an upstream only config so no prefix used
     fi
   done
 
   for rt in "${TLS_CONFIG_UPSTREAM_SNI[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+    if [[ "$(_id "${rt}")" == "${id}" ]]; then
       echo "  upstream_sni: $(echo "${rt}" | awk -F= '{print $2}')" # upstream only setting
     fi
   done
 
   for rt in "${TLS_CONFIG_UPSTREAM_HEALTH_PORTS[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+    if [[ "$(_id "${rt}")" == "${id}" ]]; then
       echo "  upstream_health_port: $(echo "${rt}" | awk -F= '{print $2}')" # upstream only setting
     fi
   done
 
   for rt in "${TLS_CONFIG_UPSTREAM_HEALTH_ADDRS[@]}"; do
-    if [[ "$(echo "${rt}" | awk -F= '{print $1}' | tr -d '.*')" == "${id}" ]]; then
+    if [[ "$(_id "${rt}")" == "${id}" ]]; then
       echo "  upstream_health_addr: $(echo "${rt}" | awk -F= '{print $2}')" # upstream only setting
     fi
   done
