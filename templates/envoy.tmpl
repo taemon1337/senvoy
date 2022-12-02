@@ -235,8 +235,20 @@ static_resources:
                 address: {{upstream_addr}}
                 port_value: {{upstream_port}}
 {{#upstream_tls}}
+{{#upstream_sni}}
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": "type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions"
+        upstream_http_protocol_options:
+          auto_sni: false
+          auto_san_validation: true
+        auto_config: {}
+        common_http_protocol_options:
+          idle_timeout: 600s
+          max_connection_duration: 600s
+{{/upstream_sni}}
     transport_socket:
-      name: envoy.transport_sockets.tls
+      name: envoy.transport_sockets.upstream
       typed_config:
         "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
 {{#upstream_sni}}
